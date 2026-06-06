@@ -29,6 +29,7 @@ export const createTask = (order = 0, language: Language = "zh"): WeekTask => ({
   detail: "",
   date: isoDate(new Date()),
   status: "pending",
+  priority: "medium",
   order
 });
 
@@ -59,7 +60,7 @@ export const normalizePlan = (plan: WeekPlan): WeekPlan => ({
     ...defaultEvaluations(),
     ...plan.evaluations
   },
-  tasks: [...plan.tasks].sort((a, b) => a.order - b.order)
+  tasks: [...plan.tasks].map((task) => ({ ...task, priority: task.priority ?? "medium" })).sort((a, b) => a.order - b.order)
 });
 
 export const localPlansKey = "almond-week-plans";

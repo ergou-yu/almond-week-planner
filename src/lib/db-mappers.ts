@@ -1,5 +1,5 @@
 import { defaultEvaluations, normalizePlan } from "@/lib/planner";
-import type { EvaluationKey, TaskStatus, UserRole, WeekPlan } from "@/types/planner";
+import type { EvaluationKey, TaskPriority, TaskStatus, UserRole, WeekPlan } from "@/types/planner";
 
 type TaskRow = {
   id: string;
@@ -7,6 +7,7 @@ type TaskRow = {
   detail: string | null;
   task_date: string | null;
   status: TaskStatus;
+  priority?: TaskPriority | null;
   sort_order: number;
 };
 
@@ -54,6 +55,7 @@ export const rowToPlan = (row: PlanRow): WeekPlan => {
       detail: task.detail ?? "",
       date: task.task_date ?? "",
       status: task.status,
+      priority: task.priority ?? "medium",
       order: task.sort_order
     })),
     evaluations,

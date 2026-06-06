@@ -2,6 +2,7 @@ create extension if not exists "pgcrypto";
 
 create type public.user_role as enum ('student', 'parent', 'teacher', 'institution');
 create type public.task_status as enum ('pending', 'excellent', 'basic', 'stopped', 'postponed');
+create type public.task_priority as enum ('low', 'medium', 'high', 'urgent');
 create type public.share_permission as enum ('status_review', 'full_edit', 'view_only');
 create type public.evaluation_kind as enum ('self', 'parent', 'teacher', 'institution');
 
@@ -33,6 +34,7 @@ create table public.tasks (
   detail text not null default '',
   task_date date,
   status public.task_status not null default 'pending',
+  priority public.task_priority not null default 'medium',
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

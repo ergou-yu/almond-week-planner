@@ -1,5 +1,7 @@
 export type TaskStatus = "pending" | "excellent" | "basic" | "stopped" | "postponed";
 
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+
 export type UserRole = "student" | "parent" | "teacher" | "institution";
 
 export type EvaluationKey = "self" | "parent" | "teacher" | "institution";
@@ -10,6 +12,7 @@ export type WeekTask = {
   detail: string;
   date: string;
   status: TaskStatus;
+  priority: TaskPriority;
   order: number;
 };
 

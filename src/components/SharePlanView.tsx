@@ -5,7 +5,7 @@ import { ArrowLeft, Download, FileDown, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { exportPlanHtml, exportPlanPdf } from "@/lib/exporters";
-import { getBrowserLanguage, getEvaluationMeta, getStatusMeta, languageLabels, languages, t, type Language } from "@/lib/i18n";
+import { getBrowserLanguage, getEvaluationMeta, getPriorityMeta, getStatusMeta, languageLabels, languages, t, type Language } from "@/lib/i18n";
 import { STATUS_ORDER } from "@/lib/status";
 import type { EvaluationKey, TaskStatus, WeekPlan } from "@/types/planner";
 
@@ -38,6 +38,7 @@ export function SharePlanView({ token }: SharePlanViewProps) {
   const [message, setMessage] = useState(() => t(getBrowserLanguage(), "share.loadingMessage"));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusMeta = getStatusMeta(language);
+  const priorityMeta = getPriorityMeta(language);
   const evaluationMeta = getEvaluationMeta(language);
 
   const changeLanguage = (nextLanguage: Language) => {
@@ -252,6 +253,17 @@ export function SharePlanView({ token }: SharePlanViewProps) {
                     </div>
                   </div>
                   <p className="min-h-14 break-words text-sm leading-6 text-blossom-deep/78">{task.detail || t(language, "noDetail")}</p>
+                  <div
+                    className="mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-black"
+                    style={{
+                      borderColor: priorityMeta[task.priority].border,
+                      background: priorityMeta[task.priority].bg,
+                      color: priorityMeta[task.priority].color
+                    }}
+                    title={priorityMeta[task.priority].description}
+                  >
+                    {t(language, "taskPriority")}: {priorityMeta[task.priority].label}
+                  </div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {statusOptions.map((status) => {
                       const meta = statusMeta[status];

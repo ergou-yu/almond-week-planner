@@ -1,4 +1,4 @@
-import type { AiSuggestion, EvaluationKey, TaskStatus, UserRole } from "@/types/planner";
+import type { AiSuggestion, EvaluationKey, TaskPriority, TaskStatus, UserRole } from "@/types/planner";
 
 export const languages = ["zh", "en", "ja", "ko"] as const;
 export type Language = (typeof languages)[number];
@@ -57,6 +57,7 @@ type TranslationTree = {
   taskTitle: string;
   taskDate: string;
   taskDetail: string;
+  taskPriority: string;
   completionStatus: string;
   saveAndShare: string;
   syncNow: string;
@@ -81,6 +82,7 @@ type TranslationTree = {
   username: string;
   displayName: string;
   password: string;
+  confirmPassword: string;
   loginAccount: string;
   registerAndEnter: string;
   wechatLogin: string;
@@ -120,6 +122,7 @@ type TranslationTree = {
     registerSuccess: string;
     registerSubmitted: string;
     authFailed: string;
+    passwordMismatch: string;
     signedOut: string;
     wechatTodo: string;
     requestFailed: string;
@@ -145,6 +148,7 @@ type TranslationTree = {
     statusLegend: string;
     tasksAndStatus: string;
     date: string;
+    priority: string;
     evaluations: string;
     htmlGoal: string;
     offlineLoaded: string;
@@ -193,6 +197,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     taskTitle: "任务名称",
     taskDate: "任务日期",
     taskDetail: "任务说明",
+    taskPriority: "重要度",
     completionStatus: "完成状态",
     saveAndShare: "保存与分享",
     syncNow: "立即同步",
@@ -217,6 +222,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     username: "用户名",
     displayName: "显示名称",
     password: "密码",
+    confirmPassword: "确认密码",
     loginAccount: "登录账号",
     registerAndEnter: "注册并进入",
     wechatLogin: "微信登录（待配置）",
@@ -256,6 +262,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       registerSuccess: "注册成功，已经登录。",
       registerSubmitted: "注册已提交。当前项目可能开启了邮箱确认，我先让你进入本地模式继续使用。",
       authFailed: "账号操作失败。",
+      passwordMismatch: "两次输入的密码不一致。",
       signedOut: "已退出登录，本地计划仍会保留。",
       wechatTodo: "微信登录入口已保留。接入真实微信 OAuth 需要 AppID、Secret 和回调域名。",
       requestFailed: "请求失败"
@@ -281,6 +288,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       statusLegend: "状态说明",
       tasksAndStatus: "小计划与完成状态",
       date: "日期：{date}",
+      priority: "重要度：{priority}",
       evaluations: "评价区",
       htmlGoal: "大计划",
       offlineLoaded: "离线文件已加载。修改会保存在这个浏览器里；如果包含在线分享 token，也会尝试同步。",
@@ -327,6 +335,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     taskTitle: "Task Name",
     taskDate: "Task Date",
     taskDetail: "Task Notes",
+    taskPriority: "Priority",
     completionStatus: "Completion Status",
     saveAndShare: "Save & Share",
     syncNow: "Sync Now",
@@ -351,6 +360,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     username: "Username",
     displayName: "Display Name",
     password: "Password",
+    confirmPassword: "Confirm Password",
     loginAccount: "Log In",
     registerAndEnter: "Create & Enter",
     wechatLogin: "WeChat Login (not configured)",
@@ -390,6 +400,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       registerSuccess: "Account created and signed in.",
       registerSubmitted: "Signup submitted. Email confirmation may be enabled, so local mode is available for now.",
       authFailed: "Account action failed.",
+      passwordMismatch: "The two passwords do not match.",
       signedOut: "Signed out. Local plans are still kept.",
       wechatTodo: "WeChat login is reserved. Real OAuth needs AppID, Secret, and a callback domain.",
       requestFailed: "Request failed"
@@ -415,6 +426,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       statusLegend: "Status Legend",
       tasksAndStatus: "Tasks & Completion Status",
       date: "Date: {date}",
+      priority: "Priority: {priority}",
       evaluations: "Reviews",
       htmlGoal: "Big Goal",
       offlineLoaded: "Offline file loaded. Changes are saved in this browser; if an online share token exists, syncing will be attempted.",
@@ -461,6 +473,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     taskTitle: "タスク名",
     taskDate: "日付",
     taskDetail: "説明",
+    taskPriority: "重要度",
     completionStatus: "完了状態",
     saveAndShare: "保存と共有",
     syncNow: "今すぐ同期",
@@ -485,6 +498,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     username: "ユーザー名",
     displayName: "表示名",
     password: "パスワード",
+    confirmPassword: "パスワード確認",
     loginAccount: "ログイン",
     registerAndEnter: "登録して入る",
     wechatLogin: "WeChat ログイン（未設定）",
@@ -524,6 +538,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       registerSuccess: "登録成功、ログイン済みです。",
       registerSubmitted: "登録を送信しました。メール確認が有効な場合があるため、先にローカルモードで使えます。",
       authFailed: "アカウント操作に失敗しました。",
+      passwordMismatch: "2回入力したパスワードが一致しません。",
       signedOut: "ログアウトしました。ローカルプランは保持されます。",
       wechatTodo: "WeChat ログイン入口は予約済みです。実装には AppID、Secret、コールバックドメインが必要です。",
       requestFailed: "リクエストに失敗しました"
@@ -549,6 +564,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       statusLegend: "状態説明",
       tasksAndStatus: "小計画と完了状態",
       date: "日付：{date}",
+      priority: "重要度：{priority}",
       evaluations: "評価欄",
       htmlGoal: "大きな目標",
       offlineLoaded: "オフラインファイルを読み込みました。変更はこのブラウザに保存され、共有 token があればオンライン同期も試みます。",
@@ -595,6 +611,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     taskTitle: "과제 이름",
     taskDate: "과제 날짜",
     taskDetail: "과제 설명",
+    taskPriority: "중요도",
     completionStatus: "완료 상태",
     saveAndShare: "저장 및 공유",
     syncNow: "지금 동기화",
@@ -619,6 +636,7 @@ const dictionaries: Record<Language, TranslationTree> = {
     username: "사용자 이름",
     displayName: "표시 이름",
     password: "비밀번호",
+    confirmPassword: "비밀번호 확인",
     loginAccount: "로그인",
     registerAndEnter: "가입하고 들어가기",
     wechatLogin: "WeChat 로그인(미설정)",
@@ -658,6 +676,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       registerSuccess: "가입 성공, 로그인되었습니다.",
       registerSubmitted: "가입 요청을 보냈습니다. 이메일 확인이 켜져 있을 수 있어 우선 로컬 모드로 사용할 수 있습니다.",
       authFailed: "계정 작업에 실패했습니다.",
+      passwordMismatch: "두 번 입력한 비밀번호가 일치하지 않습니다.",
       signedOut: "로그아웃했습니다. 로컬 계획은 그대로 유지됩니다.",
       wechatTodo: "WeChat 로그인入口은 남겨두었습니다. 실제 OAuth에는 AppID, Secret, 콜백 도메인이 필요합니다.",
       requestFailed: "요청 실패"
@@ -683,6 +702,7 @@ const dictionaries: Record<Language, TranslationTree> = {
       statusLegend: "상태 설명",
       tasksAndStatus: "작은 계획과 완료 상태",
       date: "날짜: {date}",
+      priority: "중요도: {priority}",
       evaluations: "평가 영역",
       htmlGoal: "큰 계획",
       offlineLoaded: "오프라인 파일을 불러왔습니다. 변경 사항은 이 브라우저에 저장되며 온라인 공유 token이 있으면 동기화를 시도합니다.",
@@ -791,6 +811,55 @@ export const getStatusMeta = (language: Language): Record<
   return Object.fromEntries(
     (Object.keys(colors) as TaskStatus[]).map((status) => [status, { ...labels[language][status], ...colors[status] }])
   ) as ReturnType<typeof getStatusMeta>;
+};
+
+export const getPriorityMeta = (language: Language): Record<
+  TaskPriority,
+  {
+    label: string;
+    description: string;
+    color: string;
+    bg: string;
+    border: string;
+  }
+> => {
+  const labels: Record<Language, Record<TaskPriority, { label: string; description: string }>> = {
+    zh: {
+      low: { label: "低", description: "可以放在后面处理" },
+      medium: { label: "普通", description: "正常推进的任务" },
+      high: { label: "高", description: "本周比较重要，需要优先安排" },
+      urgent: { label: "最高", description: "最重要或最紧急，优先完成" }
+    },
+    en: {
+      low: { label: "Low", description: "Can be handled later" },
+      medium: { label: "Normal", description: "A standard task to keep moving" },
+      high: { label: "High", description: "Important this week and should be scheduled early" },
+      urgent: { label: "Top", description: "Most important or urgent; complete first" }
+    },
+    ja: {
+      low: { label: "低", description: "後回しにしてもよいタスク" },
+      medium: { label: "普通", description: "通常通り進めるタスク" },
+      high: { label: "高", description: "今週重要で、早めに予定したいタスク" },
+      urgent: { label: "最優先", description: "最も重要または緊急で、先に完了したいタスク" }
+    },
+    ko: {
+      low: { label: "낮음", description: "나중에 처리해도 되는 과제" },
+      medium: { label: "보통", description: "정상적으로 진행할 과제" },
+      high: { label: "높음", description: "이번 주 중요해 먼저 배치할 과제" },
+      urgent: { label: "최우선", description: "가장 중요하거나 긴급해 먼저 끝낼 과제" }
+    }
+  };
+
+  const colors = {
+    low: { color: "#64748b", bg: "#f8fafc", border: "#cbd5e1" },
+    medium: { color: "#0f766e", bg: "#ccfbf1", border: "#5eead4" },
+    high: { color: "#b45309", bg: "#ffedd5", border: "#fdba74" },
+    urgent: { color: "#be123c", bg: "#ffe4e6", border: "#fda4af" }
+  } satisfies Record<TaskPriority, { color: string; bg: string; border: string }>;
+
+  return Object.fromEntries(
+    (Object.keys(colors) as TaskPriority[]).map((priority) => [priority, { ...labels[language][priority], ...colors[priority] }])
+  ) as ReturnType<typeof getPriorityMeta>;
 };
 
 export const getRoleMeta = (language: Language): Record<UserRole, { label: string; description: string }> => {

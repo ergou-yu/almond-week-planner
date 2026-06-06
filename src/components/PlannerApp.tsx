@@ -28,6 +28,7 @@ import { exportPlanHtml, exportPlanPdf } from "@/lib/exporters";
 import {
   getBrowserLanguage,
   getEvaluationMeta,
+  getPriorityMeta,
   getRoleMeta,
   getStatusMeta,
   languageLabels,
@@ -37,8 +38,8 @@ import {
 } from "@/lib/i18n";
 import { createDefaultPlan, createTask, loadLocalPlans, normalizePlan, saveLocalPlans } from "@/lib/planner";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase/browser";
-import { STATUS_ORDER } from "@/lib/status";
-import type { AiSuggestion, EvaluationKey, TaskStatus, UserRole, WeekPlan, WeekTask } from "@/types/planner";
+import { PRIORITY_ORDER, STATUS_ORDER } from "@/lib/status";
+import type { AiSuggestion, EvaluationKey, TaskPriority, TaskStatus, UserRole, WeekPlan, WeekTask } from "@/types/planner";
 
 type PlannerAppProps = {
   initialView: "editor" | "dashboard" | "auth";
@@ -50,6 +51,7 @@ type Notice = {
 };
 
 const statusOptions = STATUS_ORDER.filter((status) => status !== "pending");
+const priorityOptions = PRIORITY_ORDER;
 
 const noticeStyles: Record<Notice["tone"], string> = {
   info: "border-blossom-sky/30 bg-white/80 text-blossom-ink",
@@ -113,9 +115,14 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const plansRef = useRef<WeekPlan[]>([]);
+  const activeIdRef = useRef("");
+  const editVersionRef = useRef(0);
+  const loadedCloudUserRef = useRef<string | null>(null);
 
   const activePlan = plans.find((plan) => plan.id === activeId) ?? plans[0];
   const statusMeta = useMemo(() => getStatusMeta(language), [language]);
+  const priorityMeta = useMemo(() => getPriorityMeta(language), [language]);
   const roleMeta = useMemo(() => getRoleMeta(language), [language]);
   const evaluationMeta = useMemo(() => getEvaluationMeta(language), [language]);
 
@@ -126,17 +133,30 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
     }
   };
 
+  const getCurrentActivePlan = useCallback(
+    () => plansRef.current.find((plan) => plan.id === activeIdRef.current) ?? plansRef.current[0],
+    []
+  );
+
   const updatePlansState = useCallback((nextPlans: WeekPlan[], nextActiveId?: string) => {
     const normalized = nextPlans.map(normalizePlan);
+    const resolvedActiveId =
+      nextActiveId ?? (normalized.some((plan) => plan.id === activeIdRef.current) ? activeIdRef.current : normalized[0]?.id ?? "");
+    plansRef.current = normalized;
+    activeIdRef.current = resolvedActiveId;
     setPlans(normalized);
     saveLocalPlans(normalized);
-    setActiveId((current) => nextActiveId ?? (normalized.some((plan) => plan.id === current) ? current : normalized[0]?.id ?? ""));
+    setActiveId(resolvedActiveId);
   }, []);
 
   const savePlanToCloud = useCallback(
-    async (plan: WeekPlan) => {
+    async (plan: WeekPlan, options: { quiet?: boolean; version?: number } = {}) => {
       const authHeader = getAuthHeader(session);
       if (!authHeader) {
+        return null;
+      }
+
+      if (options.version !== undefined && options.version !== editVersionRef.current) {
         return null;
       }
 
@@ -156,23 +176,29 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         }
 
         const data = (await response.json()) as { plan: WeekPlan };
-        setNotice({ tone: "success", text: t(language, "notices.syncedCloud") });
+        if (!options.quiet && (options.version === undefined || options.version === editVersionRef.current)) {
+          setNotice({ tone: "success", text: t(language, "notices.syncedCloud") });
+        }
         return data.plan;
       } catch (error) {
-        setNotice({
-          tone: "error",
-          text: error instanceof Error ? error.message : t(language, "notices.syncFailed")
-        });
+        if (options.version === undefined || options.version === editVersionRef.current) {
+          setNotice({
+            tone: "error",
+            text: error instanceof Error ? error.message : t(language, "notices.syncFailed")
+          });
+        }
         return null;
       } finally {
-        setSyncing(false);
+        if (options.version === undefined || options.version === editVersionRef.current) {
+          setSyncing(false);
+        }
       }
     },
     [language, session]
   );
 
   const scheduleCloudSave = useCallback(
-    (plan: WeekPlan) => {
+    (plan: WeekPlan, version: number) => {
       if (!session) {
         return;
       }
@@ -182,31 +208,44 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       }
 
       syncTimer.current = setTimeout(() => {
-        void savePlanToCloud(plan);
-      }, 700);
+        void savePlanToCloud(plan, { quiet: true, version });
+      }, 1800);
     },
     [savePlanToCloud, session]
   );
 
   const replacePlan = useCallback(
-    (nextPlan: WeekPlan, options: { sync?: boolean } = { sync: true }) => {
+    (nextPlan: WeekPlan, options: { markDirty?: boolean; sync?: boolean } = { sync: true }) => {
       const normalized = normalizePlan({
         ...nextPlan,
         updatedAt: new Date().toISOString()
       });
-      const nextPlans = plans.some((plan) => plan.id === normalized.id)
-        ? plans.map((plan) => (plan.id === normalized.id ? normalized : plan))
-        : [normalized, ...plans];
 
-      setPlans(nextPlans);
-      saveLocalPlans(nextPlans);
+      const shouldMarkDirty = options.markDirty ?? true;
+      const version = shouldMarkDirty ? editVersionRef.current + 1 : editVersionRef.current;
+      if (shouldMarkDirty) {
+        editVersionRef.current = version;
+      }
+
+      setPlans((currentPlans) => {
+        const sourcePlans = currentPlans.length ? currentPlans : plansRef.current;
+        const nextPlans = sourcePlans.some((plan) => plan.id === normalized.id)
+          ? sourcePlans.map((plan) => (plan.id === normalized.id ? normalized : plan))
+          : [normalized, ...sourcePlans];
+
+        plansRef.current = nextPlans;
+        saveLocalPlans(nextPlans);
+        return nextPlans;
+      });
+
+      activeIdRef.current = normalized.id;
       setActiveId(normalized.id);
 
-      if (options.sync) {
-        scheduleCloudSave(normalized);
+      if (options.sync ?? true) {
+        scheduleCloudSave(normalized, version);
       }
     },
-    [plans, scheduleCloudSave]
+    [scheduleCloudSave]
   );
 
   const loadCloudPlans = useCallback(
@@ -229,8 +268,10 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         }
 
         const data = (await response.json()) as { plans: WeekPlan[] };
-        const next = data.plans.length ? data.plans : plans;
+        const currentLocalPlans = plansRef.current;
+        const next = data.plans.length ? data.plans : currentLocalPlans;
         updatePlansState(next.length ? next : [createDefaultPlan(language)], next[0]?.id);
+        loadedCloudUserRef.current = currentSession.user.id;
         setNotice({ tone: "success", text: t(language, "notices.loadedCloud") });
       } catch (error) {
         setNotice({
@@ -241,7 +282,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         setSyncing(false);
       }
     },
-    [language, plans, updatePlansState]
+    [language, updatePlansState]
   );
 
   useEffect(() => {
@@ -258,18 +299,21 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
     void supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
       setUser(data.session?.user ?? null);
-      if (data.session) {
+      if (data.session && loadedCloudUserRef.current !== data.session.user.id) {
         void loadCloudPlans(data.session);
       }
     });
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      if (nextSession) {
+      if (nextSession && event === "SIGNED_IN" && loadedCloudUserRef.current !== nextSession.user.id) {
         void loadCloudPlans(nextSession);
+      }
+      if (!nextSession) {
+        loadedCloudUserRef.current = null;
       }
     });
 
@@ -278,7 +322,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
 
   const createPlan = () => {
     const next = createDefaultPlan(language);
-    updatePlansState([next, ...plans], next.id);
+    updatePlansState([next, ...plansRef.current], next.id);
     setView("editor");
     setNotice({ tone: "success", text: t(language, "notices.planCreated") });
   };
@@ -300,47 +344,51 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       })),
       updatedAt: new Date().toISOString()
     };
-    updatePlansState([copy, ...plans], copy.id);
+    updatePlansState([copy, ...plansRef.current], copy.id);
     setView("editor");
   };
 
   const updateActivePlan = (patch: Partial<WeekPlan>) => {
-    if (!activePlan) {
+    const currentPlan = getCurrentActivePlan();
+    if (!currentPlan) {
       return;
     }
-    replacePlan({ ...activePlan, ...patch });
+    replacePlan({ ...currentPlan, ...patch });
   };
 
   const updateTask = (taskId: string, patch: Partial<WeekTask>) => {
-    if (!activePlan) {
+    const currentPlan = getCurrentActivePlan();
+    if (!currentPlan) {
       return;
     }
 
     replacePlan({
-      ...activePlan,
-      tasks: activePlan.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task))
+      ...currentPlan,
+      tasks: currentPlan.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task))
     });
   };
 
   const addTask = () => {
-    if (!activePlan) {
+    const currentPlan = getCurrentActivePlan();
+    if (!currentPlan) {
       return;
     }
 
     replacePlan({
-      ...activePlan,
-      tasks: [...activePlan.tasks, createTask(activePlan.tasks.length, language)]
+      ...currentPlan,
+      tasks: [...currentPlan.tasks, createTask(currentPlan.tasks.length, language)]
     });
   };
 
   const removeTask = (taskId: string) => {
-    if (!activePlan) {
+    const currentPlan = getCurrentActivePlan();
+    if (!currentPlan) {
       return;
     }
 
     replacePlan({
-      ...activePlan,
-      tasks: activePlan.tasks
+      ...currentPlan,
+      tasks: currentPlan.tasks
         .filter((task) => task.id !== taskId)
         .map((task, index) => ({
           ...task,
@@ -350,14 +398,15 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
   };
 
   const updateEvaluation = (key: EvaluationKey, value: string) => {
-    if (!activePlan) {
+    const currentPlan = getCurrentActivePlan();
+    if (!currentPlan) {
       return;
     }
 
     replacePlan({
-      ...activePlan,
+      ...currentPlan,
       evaluations: {
-        ...activePlan.evaluations,
+        ...currentPlan.evaluations,
         [key]: value
       }
     });
@@ -374,9 +423,10 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       return;
     }
 
-    const saved = await savePlanToCloud(activePlan);
-    if (saved) {
-      replacePlan(saved, { sync: false });
+    const version = editVersionRef.current;
+    const saved = await savePlanToCloud(activePlan, { version });
+    if (saved && version === editVersionRef.current) {
+      replacePlan(saved, { markDirty: false, sync: false });
     }
   };
 
@@ -417,7 +467,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
 
       const data = (await response.json()) as { token: string; url: string };
       const next = { ...activePlan, shareToken: data.token };
-      replacePlan(next, { sync: false });
+      replacePlan(next, { markDirty: false, sync: false });
       await navigator.clipboard?.writeText(data.url).catch(() => undefined);
       setNotice({ tone: "success", text: t(language, "notices.shareCreated", { url: data.url }) });
     } catch (error) {
@@ -540,6 +590,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
                   onCreatePlan={createPlan}
                   onDuplicatePlan={duplicatePlan}
                   onSelect={(id) => {
+                    activeIdRef.current = id;
                     setActiveId(id);
                     setView("editor");
                   }}
@@ -561,8 +612,9 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
                   supabase={supabase}
                   onNotice={setNotice}
                   onLocalRole={(role) => {
-                    if (activePlan) {
-                      replacePlan({ ...activePlan, role }, { sync: false });
+                    const currentPlan = getCurrentActivePlan();
+                    if (currentPlan) {
+                      replacePlan({ ...currentPlan, role }, { sync: false });
                     }
                   }}
                   onSignedOut={() => {
@@ -591,6 +643,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
                   plan={activePlan}
                   evaluationMeta={evaluationMeta}
                   language={language}
+                  priorityMeta={priorityMeta}
                   roleMeta={roleMeta}
                   statusMeta={statusMeta}
                   onAddTask={addTask}
@@ -871,6 +924,7 @@ function PlanEditor({
   evaluationMeta,
   language,
   plan,
+  priorityMeta,
   roleMeta,
   statusMeta,
   onAddTask,
@@ -882,6 +936,7 @@ function PlanEditor({
   evaluationMeta: ReturnType<typeof getEvaluationMeta>;
   language: Language;
   plan: WeekPlan;
+  priorityMeta: ReturnType<typeof getPriorityMeta>;
   roleMeta: ReturnType<typeof getRoleMeta>;
   statusMeta: ReturnType<typeof getStatusMeta>;
   onAddTask: () => void;
@@ -966,6 +1021,7 @@ function PlanEditor({
             key={task.id}
             index={index}
             language={language}
+            priorityMeta={priorityMeta}
             statusMeta={statusMeta}
             task={task}
             onRemove={() => onRemoveTask(task.id)}
@@ -1001,6 +1057,7 @@ function PlanEditor({
 function TaskCard({
   index,
   language,
+  priorityMeta,
   statusMeta,
   task,
   onRemove,
@@ -1008,6 +1065,7 @@ function TaskCard({
 }: {
   index: number;
   language: Language;
+  priorityMeta: ReturnType<typeof getPriorityMeta>;
   statusMeta: ReturnType<typeof getStatusMeta>;
   task: WeekTask;
   onRemove: () => void;
@@ -1048,6 +1106,12 @@ function TaskCard({
           onChange={(event) => onUpdate({ date: event.target.value })}
         />
       </label>
+      <PriorityPicker
+        language={language}
+        priorityMeta={priorityMeta}
+        value={task.priority}
+        onChange={(priority) => onUpdate({ priority })}
+      />
       <label className="mt-3 block space-y-2">
         <span className="text-sm font-black text-blossom-deep">{t(language, "taskDetail")}</span>
         <textarea
@@ -1058,6 +1122,48 @@ function TaskCard({
       </label>
       <StatusPicker language={language} statusMeta={statusMeta} value={task.status} onChange={(status) => onUpdate({ status })} />
     </motion.article>
+  );
+}
+
+function PriorityPicker({
+  language,
+  priorityMeta,
+  value,
+  onChange
+}: {
+  language: Language;
+  priorityMeta: ReturnType<typeof getPriorityMeta>;
+  value: TaskPriority;
+  onChange: (priority: TaskPriority) => void;
+}) {
+  return (
+    <div className="mt-3">
+      <div className="mb-2 text-sm font-black text-blossom-deep">{t(language, "taskPriority")}</div>
+      <div className="grid grid-cols-2 gap-2">
+        {priorityOptions.map((priority) => {
+          const meta = priorityMeta[priority];
+          const active = value === priority;
+          return (
+            <motion.button
+              key={priority}
+              className="min-h-10 rounded-lg border px-3 text-sm font-black transition"
+              style={{
+                borderColor: active ? meta.color : meta.border,
+                background: active ? meta.color : meta.bg,
+                color: active ? "#ffffff" : meta.color
+              }}
+              type="button"
+              onClick={() => onChange(priority)}
+              title={meta.description}
+              whileHover={{ y: -2, scale: 1.01 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              {meta.label}
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1269,6 +1375,7 @@ function AuthPanel({
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<UserRole>("student");
   const [loading, setLoading] = useState(false);
 
@@ -1327,6 +1434,11 @@ function AuthPanel({
         onNotice({ tone: "success", text: t(language, "notices.loginSuccess") });
         onSuccess(data.session);
       } else {
+        if (password !== confirmPassword) {
+          onNotice({ tone: "error", text: t(language, "notices.passwordMismatch") });
+          return;
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -1461,6 +1573,20 @@ function AuthPanel({
             required
           />
         </label>
+
+        {mode === "register" ? (
+          <label className="block space-y-2">
+            <span className="text-sm font-black text-blossom-deep">{t(language, "confirmPassword")}</span>
+            <input
+              className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white px-4 outline-none focus:border-blossom-deep"
+              autoComplete="new-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+            />
+          </label>
+        ) : null}
 
         <motion.button
           className="motion-sheen flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blossom-ink px-5 text-sm font-black text-white shadow-sm disabled:opacity-70"

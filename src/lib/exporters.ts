@@ -3,7 +3,7 @@
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, StandardFonts, type Color, type PDFFont, type PDFPage } from "pdf-lib";
 import { STATUS_ORDER } from "@/lib/status";
-import { getEvaluationMeta, getStatusMeta, normalizeLanguage, t, type Language } from "@/lib/i18n";
+import { getEvaluationMeta, getPriorityMeta, getStatusMeta, normalizeLanguage, t, type Language } from "@/lib/i18n";
 import type { TaskStatus, WeekPlan } from "@/types/planner";
 
 const downloadBlob = (blob: Blob, filename: string) => {
@@ -128,6 +128,7 @@ const drawRule = (page: PDFPage, y: number) => {
 export const exportPlanPdf = async (plan: WeekPlan, options: { language?: Language } = {}) => {
   const language = normalizeLanguage(options.language);
   const statusMeta = getStatusMeta(language);
+  const priorityMeta = getPriorityMeta(language);
   const evaluationMeta = getEvaluationMeta(language);
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
@@ -211,7 +212,7 @@ export const exportPlanPdf = async (plan: WeekPlan, options: { language?: Langua
 
   plan.tasks.forEach((task, taskIndex) => {
     const detailLines = wrapText(task.detail || t(language, "noDetail"), cjkFont, latinFont, 9, 250).slice(0, 3);
-    const rowHeight = Math.max(86, 58 + detailLines.length * 13);
+    const rowHeight = Math.max(102, 72 + detailLines.length * 13);
     ensureSpace(rowHeight + 12);
 
     const rowTop = y;
@@ -230,9 +231,19 @@ export const exportPlanPdf = async (plan: WeekPlan, options: { language?: Langua
     drawMixedText(page, `${taskIndex + 1}.`, cjkFont, latinBoldFont, 12, margin + 12, rowTop - 22, rgb(0.09, 0.23, 0.32));
     drawWrapped(page, task.title || t(language, "unnamedTask"), cjkFont, latinBoldFont, 12, margin + 40, rowTop - 22, 250, 14, rgb(0.09, 0.23, 0.32));
     drawMixedText(page, t(language, "export.date", { date: task.date || t(language, "noDate") }), cjkFont, latinFont, 9, margin + 40, rowTop - 42, rgb(0.38, 0.46, 0.52));
+    drawMixedText(
+      page,
+      t(language, "export.priority", { priority: priorityMeta[task.priority].label }),
+      cjkFont,
+      latinFont,
+      9,
+      margin + 40,
+      rowTop - 55,
+      hexToRgb(priorityMeta[task.priority].color)
+    );
 
     detailLines.forEach((line, index) => {
-      drawMixedText(page, line, cjkFont, latinFont, 9, margin + 40, rowTop - 58 - index * 13, rgb(0.25, 0.33, 0.38));
+      drawMixedText(page, line, cjkFont, latinFont, 9, margin + 40, rowTop - 71 - index * 13, rgb(0.25, 0.33, 0.38));
     });
 
     statusValues.forEach((status, statusIndex) => {
@@ -294,6 +305,7 @@ const escapeScriptData = (value: string) => value.replace(/</g, "\\u003c").repla
 export const exportPlanHtml = (plan: WeekPlan, options: { language?: Language } = {}) => {
   const language = normalizeLanguage(options.language);
   const statusMeta = getStatusMeta(language);
+  const priorityMeta = getPriorityMeta(language);
   const evaluationMeta = getEvaluationMeta(language);
   const planJson = escapeScriptData(JSON.stringify(plan));
   const apiOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -316,6 +328,7 @@ export const exportPlanHtml = (plan: WeekPlan, options: { language?: Language } 
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
     .card, .eval { padding: 16px; }
     .task-title { font-weight: 800; }
+    .priority { display: inline-flex; margin-top: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--color); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800; }
     .status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
     button { border: 1px solid var(--border); background: var(--bg); color: var(--color); border-radius: 999px; min-height: 38px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
     button.active { box-shadow: inset 0 0 0 2px var(--color); }
@@ -338,6 +351,7 @@ export const exportPlanHtml = (plan: WeekPlan, options: { language?: Language } 
 <script>
 const plan = ${planJson};
 const statusMeta = ${JSON.stringify(statusMeta)};
+const priorityMeta = ${JSON.stringify(priorityMeta)};
 const statusValues = ["excellent", "basic", "stopped", "postponed"];
 const evalMeta = ${JSON.stringify(evaluationMeta)};
 const apiOrigin = ${JSON.stringify(apiOrigin)};
@@ -345,6 +359,7 @@ const text = ${JSON.stringify({
   to: language === "en" ? " to " : language === "ko" ? " ~ " : " 至 ",
   noDetail: t(language, "noDetail"),
   noDate: t(language, "noDate"),
+  priorityLabel: t(language, "taskPriority"),
   syncingOnline: t(language, "export.syncingOnline"),
   syncedOnline: t(language, "export.syncedOnline"),
   syncOnlineFailed: t(language, "export.syncOnlineFailed")
@@ -387,10 +402,16 @@ const renderTasks = () => {
   plan.tasks.forEach(task => {
     const card = document.createElement("article");
     card.className = "card";
-    card.innerHTML = '<div class="task-title"></div><p></p><small></small><div class="status"></div>';
+    card.innerHTML = '<div class="task-title"></div><p></p><small></small><div class="priority"></div><div class="status"></div>';
     card.querySelector(".task-title").textContent = task.title;
     card.querySelector("p").textContent = task.detail || text.noDetail;
     card.querySelector("small").textContent = task.date || text.noDate;
+    const priority = priorityMeta[task.priority || "medium"];
+    const priorityBadge = card.querySelector(".priority");
+    priorityBadge.textContent = text.priorityLabel + ": " + priority.label;
+    priorityBadge.style.setProperty("--bg", priority.bg);
+    priorityBadge.style.setProperty("--border", priority.border);
+    priorityBadge.style.setProperty("--color", priority.color);
     const box = card.querySelector(".status");
     statusValues.forEach(status => {
       const button = document.createElement("button");
