@@ -5,7 +5,8 @@ import { ArrowLeft, Download, FileDown, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { exportPlanHtml, exportPlanPdf } from "@/lib/exporters";
-import { EVALUATION_META, STATUS_META, STATUS_ORDER } from "@/lib/status";
+import { getBrowserLanguage, getEvaluationMeta, getStatusMeta, languageLabels, languages, t, type Language } from "@/lib/i18n";
+import { STATUS_ORDER } from "@/lib/status";
 import type { EvaluationKey, TaskStatus, WeekPlan } from "@/types/planner";
 
 type SharePlanViewProps = {
@@ -26,6 +27,7 @@ const spring = {
 } as const;
 
 export function SharePlanView({ token }: SharePlanViewProps) {
+  const [language, setLanguage] = useState<Language>(() => getBrowserLanguage());
   const [plan, setPlan] = useState<WeekPlan | null>(null);
   const [permission, setPermission] = useState<Permission>({
     canUpdateStatus: false,
@@ -33,8 +35,17 @@ export function SharePlanView({ token }: SharePlanViewProps) {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("正在读取分享计划...");
+  const [message, setMessage] = useState(() => t(getBrowserLanguage(), "share.loadingMessage"));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusMeta = getStatusMeta(language);
+  const evaluationMeta = getEvaluationMeta(language);
+
+  const changeLanguage = (nextLanguage: Language) => {
+    setLanguage(nextLanguage);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("almond-language", nextLanguage);
+    }
+  };
 
   const loadPlan = useCallback(async () => {
     setLoading(true);
@@ -49,18 +60,18 @@ export function SharePlanView({ token }: SharePlanViewProps) {
         | null;
 
       if (!response.ok || !data?.plan) {
-        throw new Error(data?.error || "分享链接读取失败。");
+        throw new Error(data?.error || t(language, "share.loadFailed"));
       }
 
       setPlan(data.plan);
       setPermission(data.permission ?? { canUpdateStatus: true, canUpdateEvaluations: true });
-      setMessage("分享计划已加载。你可以修改任务状态和评价，刷新后也会保留。");
+      setMessage(t(language, "share.loadedMessage"));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "分享链接读取失败。");
+      setMessage(error instanceof Error ? error.message : t(language, "share.loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [language, token]);
 
   useEffect(() => {
     void loadPlan();
@@ -91,19 +102,19 @@ export function SharePlanView({ token }: SharePlanViewProps) {
           const data = (await response.json().catch(() => null)) as { plan?: WeekPlan; error?: string } | null;
 
           if (!response.ok || !data?.plan) {
-            throw new Error(data?.error || "同步失败。");
+            throw new Error(data?.error || t(language, "share.syncFailed"));
           }
 
           setPlan(data.plan);
-          setMessage("已同步到分享计划。");
+          setMessage(t(language, "share.synced"));
         } catch (error) {
-          setMessage(error instanceof Error ? error.message : "同步失败。");
+          setMessage(error instanceof Error ? error.message : t(language, "share.syncFailed"));
         } finally {
           setSaving(false);
         }
       }, delay);
     },
-    [token]
+    [language, token]
   );
 
   const updateTaskStatus = (taskId: string, status: TaskStatus) => {
@@ -158,11 +169,26 @@ export function SharePlanView({ token }: SharePlanViewProps) {
             href="/"
           >
             <ArrowLeft className="size-4" />
-            返回首页
+            {t(language, "share.backHome")}
           </Link>
+          <label className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/85 px-3 text-xs font-black text-blossom-deep shadow-sm">
+            <span className="hidden sm:inline">{t(language, "language")}</span>
+            <select
+              className="bg-transparent text-sm font-black text-blossom-ink outline-none"
+              value={language}
+              onChange={(event) => changeLanguage(event.target.value as Language)}
+              aria-label={t(language, "language")}
+            >
+              {languages.map((item) => (
+                <option key={item} value={item}>
+                  {languageLabels[item]}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="inline-flex items-center gap-2 rounded-full border border-blossom-deep/15 bg-white/85 px-4 py-2 text-sm font-bold text-blossom-deep">
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4 text-blossom-gold" />}
-            {saving ? "同步中" : "协作分享链接"}
+            {saving ? t(language, "share.saving") : t(language, "share.title")}
           </div>
         </motion.header>
 
@@ -175,14 +201,14 @@ export function SharePlanView({ token }: SharePlanViewProps) {
           {loading ? (
             <div className="flex min-h-72 items-center justify-center gap-3 text-sm font-bold text-blossom-deep">
               <Loader2 className="size-5 animate-spin" />
-              正在加载
+              {t(language, "share.loading")}
             </div>
           ) : plan ? (
             <>
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px] md:items-end">
                 <div>
                   <p className="mb-3 inline-flex rounded-full border border-blossom-deep/15 bg-white/75 px-3 py-1 text-xs font-black text-blossom-deep">
-                    {plan.startDate} 至 {plan.endDate}
+                    {plan.startDate} {language === "en" ? "to" : language === "ko" ? "~" : "至"} {plan.endDate}
                   </p>
                   <h1 className="text-[clamp(2rem,8vw,4.8rem)] font-black leading-none">
                     <span className="brush-underline">{plan.title}</span>
@@ -190,13 +216,13 @@ export function SharePlanView({ token }: SharePlanViewProps) {
                   <p className="mt-4 max-w-3xl text-sm leading-7 text-blossom-deep/78">{plan.bigGoal}</p>
                 </div>
                 <div className="grid gap-2">
-                  <motion.button className="motion-sheen inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blossom-ink px-4 text-sm font-black text-white" type="button" onClick={() => exportPlanPdf(plan)} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+                  <motion.button className="motion-sheen inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blossom-ink px-4 text-sm font-black text-white" type="button" onClick={() => exportPlanPdf(plan, { language })} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
                     <FileDown className="size-4" />
-                    下载 PDF
+                    {t(language, "share.downloadPdf")}
                   </motion.button>
-                  <motion.button className="motion-sheen inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white px-4 text-sm font-black text-blossom-ink" type="button" onClick={() => exportPlanHtml(plan)} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+                  <motion.button className="motion-sheen inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white px-4 text-sm font-black text-blossom-ink" type="button" onClick={() => exportPlanHtml(plan, { language })} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
                     <Download className="size-4" />
-                    下载 HTML
+                    {t(language, "share.downloadHtml")}
                   </motion.button>
                 </div>
               </div>
@@ -222,13 +248,13 @@ export function SharePlanView({ token }: SharePlanViewProps) {
                     <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-blossom-deep text-sm font-black text-white">{index + 1}</span>
                     <div className="min-w-0">
                       <h2 className="break-words text-lg font-black">{task.title}</h2>
-                      <p className="text-xs font-bold text-blossom-deep/64">{task.date || "未指定日期"}</p>
+                      <p className="text-xs font-bold text-blossom-deep/64">{task.date || t(language, "noDate")}</p>
                     </div>
                   </div>
-                  <p className="min-h-14 break-words text-sm leading-6 text-blossom-deep/78">{task.detail || "没有补充说明"}</p>
+                  <p className="min-h-14 break-words text-sm leading-6 text-blossom-deep/78">{task.detail || t(language, "noDetail")}</p>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {statusOptions.map((status) => {
-                      const meta = STATUS_META[status];
+                      const meta = statusMeta[status];
                       const active = task.status === status;
                       return (
                         <motion.button
@@ -255,10 +281,10 @@ export function SharePlanView({ token }: SharePlanViewProps) {
             </motion.section>
 
             <motion.section className="paper-panel mt-5 rounded-lg p-4 sm:p-5" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={spring}>
-              <h2 className="text-xl font-black">协作评价</h2>
+              <h2 className="text-xl font-black">{t(language, "share.collaborationReviews")}</h2>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {(Object.keys(EVALUATION_META) as EvaluationKey[]).map((key) => {
-                  const meta = EVALUATION_META[key];
+                {(Object.keys(evaluationMeta) as EvaluationKey[]).map((key) => {
+                  const meta = evaluationMeta[key];
                   return (
                     <label key={key} className="space-y-2">
                       <span className="text-sm font-black text-blossom-deep">{meta.label}</span>

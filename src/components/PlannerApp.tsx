@@ -25,9 +25,19 @@ import {
 import type { Session, User } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { exportPlanHtml, exportPlanPdf } from "@/lib/exporters";
+import {
+  getBrowserLanguage,
+  getEvaluationMeta,
+  getRoleMeta,
+  getStatusMeta,
+  languageLabels,
+  languages,
+  t,
+  type Language
+} from "@/lib/i18n";
 import { createDefaultPlan, createTask, loadLocalPlans, normalizePlan, saveLocalPlans } from "@/lib/planner";
 import { getSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase/browser";
-import { EVALUATION_META, ROLE_META, STATUS_META, STATUS_ORDER } from "@/lib/status";
+import { STATUS_ORDER } from "@/lib/status";
 import type { AiSuggestion, EvaluationKey, TaskStatus, UserRole, WeekPlan, WeekTask } from "@/types/planner";
 
 type PlannerAppProps = {
@@ -48,7 +58,10 @@ const noticeStyles: Record<Notice["tone"], string> = {
   error: "border-red-300 bg-red-50 text-red-800"
 };
 
-const formatRange = (plan: WeekPlan) => `${plan.startDate || "未设置"} 至 ${plan.endDate || "未设置"}`;
+const formatRange = (plan: WeekPlan, language: Language) => {
+  const separator = language === "en" ? " to " : language === "ko" ? " ~ " : " 至 ";
+  return `${plan.startDate || t(language, "unset")}${separator}${plan.endDate || t(language, "unset")}`;
+};
 
 const getAuthHeader = (session: Session | null) => {
   if (!session?.access_token) {
@@ -58,9 +71,9 @@ const getAuthHeader = (session: Session | null) => {
   return `Bearer ${session.access_token}`;
 };
 
-const parseApiError = async (response: Response) => {
+const parseApiError = async (response: Response, language: Language) => {
   const data = (await response.json().catch(() => null)) as { error?: string } | null;
-  return data?.error || response.statusText || "请求失败";
+  return data?.error || response.statusText || t(language, "notices.requestFailed");
 };
 
 const fadeUp = {
@@ -86,21 +99,32 @@ const spring = {
 export function PlannerApp({ initialView }: PlannerAppProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const cloudConfigured = isSupabaseBrowserConfigured();
+  const [language, setLanguage] = useState<Language>(() => getBrowserLanguage());
   const [view, setView] = useState(initialView);
   const [plans, setPlans] = useState<WeekPlan[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [notice, setNotice] = useState<Notice>({
+  const [notice, setNotice] = useState<Notice>(() => ({
     tone: "info",
-    text: "可以先用预设角色离线创建计划；配置 Supabase 后可注册账号、跨设备同步和分享协作。"
-  });
+    text: t(getBrowserLanguage(), "notices.initial")
+  }));
   const [syncing, setSyncing] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activePlan = plans.find((plan) => plan.id === activeId) ?? plans[0];
+  const statusMeta = useMemo(() => getStatusMeta(language), [language]);
+  const roleMeta = useMemo(() => getRoleMeta(language), [language]);
+  const evaluationMeta = useMemo(() => getEvaluationMeta(language), [language]);
+
+  const changeLanguage = (nextLanguage: Language) => {
+    setLanguage(nextLanguage);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("almond-language", nextLanguage);
+    }
+  };
 
   const updatePlansState = useCallback((nextPlans: WeekPlan[], nextActiveId?: string) => {
     const normalized = nextPlans.map(normalizePlan);
@@ -128,23 +152,23 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         });
 
         if (!response.ok) {
-          throw new Error(await parseApiError(response));
+          throw new Error(await parseApiError(response, language));
         }
 
         const data = (await response.json()) as { plan: WeekPlan };
-        setNotice({ tone: "success", text: "已同步到云端账号。" });
+        setNotice({ tone: "success", text: t(language, "notices.syncedCloud") });
         return data.plan;
       } catch (error) {
         setNotice({
           tone: "error",
-          text: error instanceof Error ? error.message : "云同步失败。"
+          text: error instanceof Error ? error.message : t(language, "notices.syncFailed")
         });
         return null;
       } finally {
         setSyncing(false);
       }
     },
-    [session]
+    [language, session]
   );
 
   const scheduleCloudSave = useCallback(
@@ -201,30 +225,30 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         });
 
         if (!response.ok) {
-          throw new Error(await parseApiError(response));
+          throw new Error(await parseApiError(response, language));
         }
 
         const data = (await response.json()) as { plans: WeekPlan[] };
         const next = data.plans.length ? data.plans : plans;
-        updatePlansState(next.length ? next : [createDefaultPlan()], next[0]?.id);
-        setNotice({ tone: "success", text: "已读取你的云端周计划。" });
+        updatePlansState(next.length ? next : [createDefaultPlan(language)], next[0]?.id);
+        setNotice({ tone: "success", text: t(language, "notices.loadedCloud") });
       } catch (error) {
         setNotice({
           tone: "error",
-          text: error instanceof Error ? error.message : "读取云端计划失败。"
+          text: error instanceof Error ? error.message : t(language, "notices.loadCloudFailed")
         });
       } finally {
         setSyncing(false);
       }
     },
-    [plans, updatePlansState]
+    [language, plans, updatePlansState]
   );
 
   useEffect(() => {
     const stored = loadLocalPlans();
-    const initial = stored.length ? stored : [createDefaultPlan()];
+    const initial = stored.length ? stored : [createDefaultPlan(language)];
     updatePlansState(initial, initial[0]?.id);
-  }, [updatePlansState]);
+  }, [language, updatePlansState]);
 
   useEffect(() => {
     if (!supabase) {
@@ -253,10 +277,10 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
   }, [loadCloudPlans, supabase]);
 
   const createPlan = () => {
-    const next = createDefaultPlan();
+    const next = createDefaultPlan(language);
     updatePlansState([next, ...plans], next.id);
     setView("editor");
-    setNotice({ tone: "success", text: "新的周计划已经创建。" });
+    setNotice({ tone: "success", text: t(language, "notices.planCreated") });
   };
 
   const duplicatePlan = () => {
@@ -267,7 +291,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
     const copy: WeekPlan = {
       ...activePlan,
       id: crypto.randomUUID(),
-      title: `${activePlan.title} 副本`,
+      title: `${activePlan.title} ${t(language, "createdCopySuffix")}`,
       shareToken: undefined,
       tasks: activePlan.tasks.map((task, index) => ({
         ...task,
@@ -305,7 +329,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
 
     replacePlan({
       ...activePlan,
-      tasks: [...activePlan.tasks, createTask(activePlan.tasks.length)]
+      tasks: [...activePlan.tasks, createTask(activePlan.tasks.length, language)]
     });
   };
 
@@ -345,7 +369,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
     }
 
     if (!session) {
-      setNotice({ tone: "warning", text: "还没有登录。当前计划已保存在本机，可以先注册或登录后再同步。" });
+      setNotice({ tone: "warning", text: t(language, "notices.loginNeededToSync") });
       setView("auth");
       return;
     }
@@ -365,8 +389,8 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       setNotice({
         tone: "warning",
         text: cloudConfigured
-          ? "在线链接分享需要先登录真实账号并同步计划。登录后再点这里，会生成可协作的 /share 链接。"
-          : "当前没有配置 Supabase 云端，所以不能生成在线协作链接。你可以先导出独立 HTML 文件分享。"
+          ? t(language, "notices.loginNeededForShare")
+          : t(language, "notices.cloudMissingForShare")
       });
       setView("auth");
       return;
@@ -388,18 +412,18 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       });
 
       if (!response.ok) {
-        throw new Error(await parseApiError(response));
+        throw new Error(await parseApiError(response, language));
       }
 
       const data = (await response.json()) as { token: string; url: string };
       const next = { ...activePlan, shareToken: data.token };
       replacePlan(next, { sync: false });
       await navigator.clipboard?.writeText(data.url).catch(() => undefined);
-      setNotice({ tone: "success", text: `分享链接已生成并尝试复制：${data.url}` });
+      setNotice({ tone: "success", text: t(language, "notices.shareCreated", { url: data.url }) });
     } catch (error) {
       setNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "生成分享链接失败。"
+        text: error instanceof Error ? error.message : t(language, "notices.shareFailed")
       });
     } finally {
       setSyncing(false);
@@ -419,23 +443,23 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(activePlan)
+        body: JSON.stringify({ plan: activePlan, language })
       });
 
       if (!response.ok) {
-        throw new Error(await parseApiError(response));
+        throw new Error(await parseApiError(response, language));
       }
 
       const data = (await response.json()) as { suggestion: AiSuggestion; notice?: string };
       setAiSuggestion(data.suggestion);
       setNotice({
         tone: data.notice ? "warning" : "success",
-        text: data.notice || "AI 已给出计划建议。"
+        text: data.notice || t(language, "notices.aiDone")
       });
     } catch (error) {
       setNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "AI 建议生成失败。"
+        text: error instanceof Error ? error.message : t(language, "notices.aiFailed")
       });
     } finally {
       setAiLoading(false);
@@ -448,12 +472,12 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
     }
 
     try {
-      await exportPlanPdf(activePlan);
-      setNotice({ tone: "success", text: "PDF 已开始下载，里面包含可勾选状态和评价输入区。" });
+      await exportPlanPdf(activePlan, { language });
+      setNotice({ tone: "success", text: t(language, "notices.pdfStarted") });
     } catch (error) {
       setNotice({
         tone: "error",
-        text: error instanceof Error ? `PDF 导出失败：${error.message}` : "PDF 导出失败。"
+        text: error instanceof Error ? `${t(language, "notices.pdfFailed")} ${error.message}` : t(language, "notices.pdfFailed")
       });
     }
   };
@@ -463,8 +487,8 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       return;
     }
 
-    exportPlanHtml(activePlan);
-    setNotice({ tone: "success", text: "独立 HTML 文件已开始下载。" });
+    exportPlanHtml(activePlan, { language });
+    setNotice({ tone: "success", text: t(language, "notices.htmlStarted") });
   };
 
   return (
@@ -484,15 +508,17 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       <TopNav
         activeView={view}
         cloudConfigured={cloudConfigured}
+        language={language}
         syncing={syncing}
         user={user}
+        onLanguageChange={changeLanguage}
         onCreatePlan={createPlan}
         onViewChange={setView}
       />
 
       <section className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-8 pt-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:pt-8">
         <div className="min-w-0">
-          <HeroPanel activePlan={activePlan} onViewDashboard={() => setView("dashboard")} />
+          <HeroPanel activePlan={activePlan} language={language} onViewDashboard={() => setView("dashboard")} />
 
           <div className={`mt-4 rounded-lg border px-4 py-3 text-sm ${noticeStyles[notice.tone]}`}>
             {notice.text}
@@ -509,6 +535,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
               >
                 <DashboardView
                   activeId={activeId}
+                  language={language}
                   plans={plans}
                   onCreatePlan={createPlan}
                   onDuplicatePlan={duplicatePlan}
@@ -528,6 +555,8 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
               >
                 <AuthPanel
                   cloudConfigured={cloudConfigured}
+                  language={language}
+                  roleMeta={roleMeta}
                   session={session}
                   supabase={supabase}
                   onNotice={setNotice}
@@ -560,6 +589,10 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
               >
                 <PlanEditor
                   plan={activePlan}
+                  evaluationMeta={evaluationMeta}
+                  language={language}
+                  roleMeta={roleMeta}
+                  statusMeta={statusMeta}
                   onAddTask={addTask}
                   onRemoveTask={removeTask}
                   onUpdateEvaluation={updateEvaluation}
@@ -576,6 +609,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
             aiLoading={aiLoading}
             aiSuggestion={aiSuggestion}
             cloudConfigured={cloudConfigured}
+            language={language}
             onAi={requestAiSuggestion}
             onExportHtml={exportHtml}
             onExportPdf={exportPdf}
@@ -588,7 +622,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         </aside>
       </section>
 
-      <MobileDock onCreatePlan={createPlan} onShare={createShareLink} onSync={syncNow} onViewChange={setView} />
+      <MobileDock language={language} onCreatePlan={createPlan} onShare={createShareLink} onSync={syncNow} onViewChange={setView} />
     </main>
   );
 }
@@ -596,15 +630,19 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
 function TopNav({
   activeView,
   cloudConfigured,
+  language,
   syncing,
   user,
+  onLanguageChange,
   onCreatePlan,
   onViewChange
 }: {
   activeView: string;
   cloudConfigured: boolean;
+  language: Language;
   syncing: boolean;
   user: User | null;
+  onLanguageChange: (language: Language) => void;
   onCreatePlan: () => void;
   onViewChange: (view: PlannerAppProps["initialView"]) => void;
 }) {
@@ -624,16 +662,17 @@ function TopNav({
           <Leaf className="size-5 text-blossom-leaf" />
         </motion.span>
         <span className="min-w-0">
-          <span className="block truncate text-base font-black sm:text-lg">杏花周计划</span>
+          <span className="block truncate text-base font-black sm:text-lg">{t(language, "appName")}</span>
           <span className="hidden text-xs text-blossom-deep/70 sm:block">
-            {cloudConfigured ? "云同步可用" : "离线体验模式"}
-            {syncing ? " · 同步中" : ""}
+            {cloudConfigured ? t(language, "cloudReady") : t(language, "offlineMode")}
+            {syncing ? t(language, "syncingSuffix") : ""}
           </span>
         </span>
       </Link>
 
       <nav className="flex items-center gap-2">
-        <NavButton active={activeView === "dashboard"} icon={PanelTop} label="仪表盘" onClick={() => onViewChange("dashboard")} />
+        <LanguageSwitcher language={language} onChange={onLanguageChange} />
+        <NavButton active={activeView === "dashboard"} icon={PanelTop} label={t(language, "navDashboard")} onClick={() => onViewChange("dashboard")} />
         <motion.button
           className="motion-sheen hidden min-h-11 items-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/80 px-4 text-sm font-bold text-blossom-ink shadow-sm transition hover:bg-white sm:flex"
           type="button"
@@ -642,11 +681,31 @@ function TopNav({
           whileTap={{ scale: 0.98 }}
         >
           <Plus className="size-4" />
-          新计划
+          {t(language, "navNewPlan")}
         </motion.button>
-        <NavButton active={activeView === "auth"} icon={user ? UserRound : LogIn} label={user ? "账号" : "登录"} onClick={() => onViewChange("auth")} />
+        <NavButton active={activeView === "auth"} icon={user ? UserRound : LogIn} label={user ? t(language, "navAccount") : t(language, "navLogin")} onClick={() => onViewChange("auth")} />
       </nav>
     </motion.header>
+  );
+}
+
+function LanguageSwitcher({ language, onChange }: { language: Language; onChange: (language: Language) => void }) {
+  return (
+    <label className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/80 px-2 text-xs font-black text-blossom-deep shadow-sm sm:px-3">
+      <span className="hidden sm:inline">{t(language, "language")}</span>
+      <select
+        className="bg-transparent text-sm font-black text-blossom-ink outline-none"
+        value={language}
+        onChange={(event) => onChange(event.target.value as Language)}
+        aria-label={t(language, "language")}
+      >
+        {languages.map((item) => (
+          <option key={item} value={item}>
+            {languageLabels[item]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -679,7 +738,7 @@ function NavButton({
   );
 }
 
-function HeroPanel({ activePlan, onViewDashboard }: { activePlan?: WeekPlan; onViewDashboard: () => void }) {
+function HeroPanel({ activePlan, language, onViewDashboard }: { activePlan?: WeekPlan; language: Language; onViewDashboard: () => void }) {
   return (
     <motion.section
       className="glass-panel relative overflow-hidden rounded-lg p-5 sm:p-7"
@@ -700,15 +759,15 @@ function HeroPanel({ activePlan, onViewDashboard }: { activePlan?: WeekPlan; onV
             variants={fadeUp}
           >
             <Sparkles className="size-3.5 text-blossom-gold" />
-            梵高杏花灵感 · 可协作周计划
+            {t(language, "heroKicker")}
           </motion.p>
           <motion.h1 className="max-w-3xl text-[clamp(2rem,8vw,5rem)] font-black leading-[0.95] tracking-normal text-blossom-ink" variants={fadeUp}>
-            把这一周拆成
-            <span className="brush-underline">可以完成</span>
-            的小计划
+            {t(language, "heroTitleBefore")}
+            <span className="brush-underline">{t(language, "heroTitleEmphasis")}</span>
+            {t(language, "heroTitleAfter")}
           </motion.h1>
           <motion.p className="mt-4 max-w-2xl text-sm leading-7 text-blossom-deep/82 sm:text-base" variants={fadeUp}>
-            写大目标、拆小任务、标记高质完成/基本完成/停止/推迟，导出互动 PDF，也能用分享链接让家长或老师协作评价。
+            {t(language, "heroBody")}
           </motion.p>
         </motion.div>
         <motion.button
@@ -720,17 +779,17 @@ function HeroPanel({ activePlan, onViewDashboard }: { activePlan?: WeekPlan; onV
           whileTap={{ scale: 0.98 }}
         >
           <PanelTop className="size-5" />
-          进入仪表盘
+          {t(language, "enterDashboard")}
         </motion.button>
       </div>
       {activePlan ? (
         <motion.div className="relative mt-5 grid gap-3 sm:grid-cols-3" variants={stagger}>
-          <MetricCard icon={CalendarDays} label="计划周期" value={formatRange(activePlan)} />
-          <MetricCard icon={ClipboardList} label="小计划" value={`${activePlan.tasks.length} 项`} />
+          <MetricCard icon={CalendarDays} label={t(language, "planRange")} value={formatRange(activePlan, language)} />
+          <MetricCard icon={ClipboardList} label={t(language, "taskCount")} value={t(language, "itemCount", { count: activePlan.tasks.length })} />
           <MetricCard
             icon={CheckCircle2}
-            label="已标记"
-            value={`${activePlan.tasks.filter((task) => task.status !== "pending").length} 项`}
+            label={t(language, "markedCount")}
+            value={t(language, "itemCount", { count: activePlan.tasks.filter((task) => task.status !== "pending").length })}
           />
         </motion.div>
       ) : null}
@@ -752,12 +811,14 @@ function MetricCard({ icon: Icon, label, value }: { icon: typeof CalendarDays; l
 
 function DashboardView({
   activeId,
+  language,
   plans,
   onCreatePlan,
   onDuplicatePlan,
   onSelect
 }: {
   activeId: string;
+  language: Language;
   plans: WeekPlan[];
   onCreatePlan: () => void;
   onDuplicatePlan: () => void;
@@ -767,17 +828,17 @@ function DashboardView({
     <motion.section className="paper-panel rounded-lg p-4 sm:p-5" variants={stagger} initial="hidden" animate="show">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <motion.div variants={fadeUp}>
-          <h2 className="text-xl font-black">仪表盘</h2>
-          <p className="mt-1 text-sm text-blossom-deep/70">选择一个计划继续编辑，或复制当前计划作为新的一周。</p>
+          <h2 className="text-xl font-black">{t(language, "dashboardTitle")}</h2>
+          <p className="mt-1 text-sm text-blossom-deep/70">{t(language, "dashboardHelp")}</p>
         </motion.div>
         <motion.div className="flex gap-2" variants={fadeUp}>
           <motion.button className="motion-sheen inline-flex min-h-11 items-center gap-2 rounded-lg bg-blossom-ink px-4 text-sm font-bold text-white" type="button" onClick={onCreatePlan} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
             <Plus className="size-4" />
-            新建
+            {t(language, "create")}
           </motion.button>
           <motion.button className="motion-sheen inline-flex min-h-11 items-center gap-2 rounded-lg border border-blossom-deep/15 bg-white px-4 text-sm font-bold text-blossom-ink" type="button" onClick={onDuplicatePlan} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
             <ClipboardList className="size-4" />
-            复制
+            {t(language, "duplicate")}
           </motion.button>
         </motion.div>
       </div>
@@ -796,9 +857,9 @@ function DashboardView({
             whileTap={{ scale: 0.985 }}
           >
             <span className="block text-lg font-black">{plan.title}</span>
-            <span className="mt-2 block text-sm opacity-80">{formatRange(plan)}</span>
+            <span className="mt-2 block text-sm opacity-80">{formatRange(plan, language)}</span>
             <span className="mt-3 line-clamp-2 block text-sm opacity-90">{plan.bigGoal}</span>
-            <span className="mt-4 inline-flex rounded-full bg-white/18 px-3 py-1 text-xs font-bold">{plan.tasks.length} 个小计划</span>
+            <span className="mt-4 inline-flex rounded-full bg-white/18 px-3 py-1 text-xs font-bold">{t(language, "itemCount", { count: plan.tasks.length })}</span>
           </motion.button>
         ))}
       </motion.div>
@@ -807,14 +868,22 @@ function DashboardView({
 }
 
 function PlanEditor({
+  evaluationMeta,
+  language,
   plan,
+  roleMeta,
+  statusMeta,
   onAddTask,
   onRemoveTask,
   onUpdateEvaluation,
   onUpdatePlan,
   onUpdateTask
 }: {
+  evaluationMeta: ReturnType<typeof getEvaluationMeta>;
+  language: Language;
   plan: WeekPlan;
+  roleMeta: ReturnType<typeof getRoleMeta>;
+  statusMeta: ReturnType<typeof getStatusMeta>;
   onAddTask: () => void;
   onRemoveTask: (taskId: string) => void;
   onUpdateEvaluation: (key: EvaluationKey, value: string) => void;
@@ -826,7 +895,7 @@ function PlanEditor({
       <motion.div className="paper-panel rounded-lg p-4 sm:p-5" variants={fadeUp}>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm font-black text-blossom-deep">计划标题</span>
+            <span className="text-sm font-black text-blossom-deep">{t(language, "planTitle")}</span>
             <input
               className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white/90 px-4 text-base font-bold outline-none transition focus:border-blossom-deep"
               value={plan.title}
@@ -834,13 +903,13 @@ function PlanEditor({
             />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black text-blossom-deep">当前角色</span>
+            <span className="text-sm font-black text-blossom-deep">{t(language, "currentRole")}</span>
             <select
               className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white/90 px-4 text-base font-bold outline-none transition focus:border-blossom-deep"
               value={plan.role}
               onChange={(event) => onUpdatePlan({ role: event.target.value as UserRole })}
             >
-              {Object.entries(ROLE_META).map(([role, meta]) => (
+              {Object.entries(roleMeta).map(([role, meta]) => (
                 <option key={role} value={role}>
                   {meta.label}
                 </option>
@@ -850,7 +919,7 @@ function PlanEditor({
         </div>
 
         <label className="mt-4 block space-y-2">
-          <span className="text-sm font-black text-blossom-deep">这一周的大计划</span>
+          <span className="text-sm font-black text-blossom-deep">{t(language, "bigGoal")}</span>
           <textarea
             className="min-h-32 w-full resize-y rounded-lg border border-blossom-deep/15 bg-white/90 px-4 py-3 leading-7 outline-none transition focus:border-blossom-deep"
             value={plan.bigGoal}
@@ -860,7 +929,7 @@ function PlanEditor({
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm font-black text-blossom-deep">开始时间</span>
+            <span className="text-sm font-black text-blossom-deep">{t(language, "startDate")}</span>
             <input
               className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white/90 px-4 outline-none transition focus:border-blossom-deep"
               type="date"
@@ -869,7 +938,7 @@ function PlanEditor({
             />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black text-blossom-deep">结束时间</span>
+            <span className="text-sm font-black text-blossom-deep">{t(language, "endDate")}</span>
             <input
               className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white/90 px-4 outline-none transition focus:border-blossom-deep"
               type="date"
@@ -882,27 +951,35 @@ function PlanEditor({
 
       <motion.div className="flex flex-wrap items-center justify-between gap-3" variants={fadeUp}>
         <div>
-          <h2 className="text-xl font-black">小计划卡片</h2>
-          <p className="text-sm text-blossom-deep/70">每个任务都可以单独标记完成状态。</p>
+          <h2 className="text-xl font-black">{t(language, "taskCards")}</h2>
+          <p className="text-sm text-blossom-deep/70">{t(language, "taskCardsHelp")}</p>
         </div>
         <motion.button className="motion-sheen inline-flex min-h-11 items-center gap-2 rounded-lg bg-blossom-ink px-4 text-sm font-bold text-white shadow-sm" type="button" onClick={onAddTask} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
           <Plus className="size-4" />
-          添加小计划
+          {t(language, "addTask")}
         </motion.button>
       </motion.div>
 
       <motion.div className="grid gap-4 md:grid-cols-2" variants={stagger}>
         {plan.tasks.map((task, index) => (
-          <TaskCard key={task.id} index={index} task={task} onRemove={() => onRemoveTask(task.id)} onUpdate={(patch) => onUpdateTask(task.id, patch)} />
+          <TaskCard
+            key={task.id}
+            index={index}
+            language={language}
+            statusMeta={statusMeta}
+            task={task}
+            onRemove={() => onRemoveTask(task.id)}
+            onUpdate={(patch) => onUpdateTask(task.id, patch)}
+          />
         ))}
       </motion.div>
 
       <motion.section className="paper-panel rounded-lg p-4 sm:p-5" variants={fadeUp}>
-        <h2 className="text-xl font-black">评价区</h2>
-        <p className="mt-1 text-sm text-blossom-deep/70">这些内容会进入 PDF，也会在分享链接里保留。</p>
+        <h2 className="text-xl font-black">{t(language, "evaluationsTitle")}</h2>
+        <p className="mt-1 text-sm text-blossom-deep/70">{t(language, "evaluationsHelp")}</p>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {(Object.keys(EVALUATION_META) as EvaluationKey[]).map((key) => {
-            const meta = EVALUATION_META[key];
+          {(Object.keys(evaluationMeta) as EvaluationKey[]).map((key) => {
+            const meta = evaluationMeta[key];
             return (
               <label key={key} className="space-y-2">
                 <span className="text-sm font-black text-blossom-deep">{meta.label}</span>
@@ -923,11 +1000,15 @@ function PlanEditor({
 
 function TaskCard({
   index,
+  language,
+  statusMeta,
   task,
   onRemove,
   onUpdate
 }: {
   index: number;
+  language: Language;
+  statusMeta: ReturnType<typeof getStatusMeta>;
   task: WeekTask;
   onRemove: () => void;
   onUpdate: (patch: Partial<WeekTask>) => void;
@@ -947,11 +1028,11 @@ function TaskCard({
           {index + 1}
         </motion.span>
         <motion.button className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700" type="button" onClick={onRemove} whileTap={{ scale: 0.95 }}>
-          删除
+          {t(language, "delete")}
         </motion.button>
       </div>
       <label className="block space-y-2">
-        <span className="text-sm font-black text-blossom-deep">任务名称</span>
+        <span className="text-sm font-black text-blossom-deep">{t(language, "taskTitle")}</span>
         <input
           className="min-h-11 w-full rounded-lg border border-blossom-deep/15 bg-white/90 px-3 font-bold outline-none transition focus:border-blossom-deep"
           value={task.title}
@@ -959,7 +1040,7 @@ function TaskCard({
         />
       </label>
       <label className="mt-3 block space-y-2">
-        <span className="text-sm font-black text-blossom-deep">任务日期</span>
+        <span className="text-sm font-black text-blossom-deep">{t(language, "taskDate")}</span>
         <input
           className="min-h-11 w-full rounded-lg border border-blossom-deep/15 bg-white/90 px-3 outline-none transition focus:border-blossom-deep"
           type="date"
@@ -968,25 +1049,35 @@ function TaskCard({
         />
       </label>
       <label className="mt-3 block space-y-2">
-        <span className="text-sm font-black text-blossom-deep">任务说明</span>
+        <span className="text-sm font-black text-blossom-deep">{t(language, "taskDetail")}</span>
         <textarea
           className="min-h-24 w-full resize-y rounded-lg border border-blossom-deep/15 bg-white/90 px-3 py-2 leading-6 outline-none transition focus:border-blossom-deep"
           value={task.detail}
           onChange={(event) => onUpdate({ detail: event.target.value })}
         />
       </label>
-      <StatusPicker value={task.status} onChange={(status) => onUpdate({ status })} />
+      <StatusPicker language={language} statusMeta={statusMeta} value={task.status} onChange={(status) => onUpdate({ status })} />
     </motion.article>
   );
 }
 
-function StatusPicker({ value, onChange }: { value: TaskStatus; onChange: (status: TaskStatus) => void }) {
+function StatusPicker({
+  language,
+  statusMeta,
+  value,
+  onChange
+}: {
+  language: Language;
+  statusMeta: ReturnType<typeof getStatusMeta>;
+  value: TaskStatus;
+  onChange: (status: TaskStatus) => void;
+}) {
   return (
     <div className="mt-4">
-      <div className="mb-2 text-sm font-black text-blossom-deep">完成状态</div>
+      <div className="mb-2 text-sm font-black text-blossom-deep">{t(language, "completionStatus")}</div>
       <div className="grid grid-cols-2 gap-2">
         {statusOptions.map((status) => {
-          const meta = STATUS_META[status];
+          const meta = statusMeta[status];
           const active = value === status;
           return (
             <motion.button
@@ -1027,6 +1118,7 @@ function ControlPanel({
   aiLoading,
   aiSuggestion,
   cloudConfigured,
+  language,
   onAi,
   onExportHtml,
   onExportPdf,
@@ -1039,6 +1131,7 @@ function ControlPanel({
   aiLoading: boolean;
   aiSuggestion: AiSuggestion | null;
   cloudConfigured: boolean;
+  language: Language;
   onAi: () => void;
   onExportHtml: () => void;
   onExportPdf: () => void;
@@ -1053,28 +1146,28 @@ function ControlPanel({
       <motion.section className="glass-panel rounded-lg p-4" variants={fadeUp} whileHover={{ y: -2 }} transition={spring}>
         <h2 className="flex items-center gap-2 text-lg font-black">
           <Save className="size-5 text-blossom-leaf" />
-          保存与分享
+          {t(language, "saveAndShare")}
         </h2>
         <div className="mt-4 grid gap-2">
-          <ActionButton icon={Save} label={syncing ? "同步中..." : session ? "立即同步" : "登录后同步"} onClick={onSync} />
-          <ActionButton icon={Share2} label="生成在线协作链接" onClick={onShare} />
-          <ActionButton icon={FileDown} label="导出互动 PDF" onClick={onExportPdf} />
-          <ActionButton icon={Download} label="导出独立 HTML" onClick={onExportHtml} />
+          <ActionButton icon={Save} label={syncing ? `${t(language, "share.saving")}...` : session ? t(language, "syncNow") : t(language, "syncAfterLogin")} onClick={onSync} />
+          <ActionButton icon={Share2} label={t(language, "createShareLink")} onClick={onShare} />
+          <ActionButton icon={FileDown} label={t(language, "exportPdf")} onClick={onExportPdf} />
+          <ActionButton icon={Download} label={t(language, "exportHtml")} onClick={onExportHtml} />
         </div>
         <p className="mt-3 text-xs leading-5 text-blossom-deep/72">
           {cloudConfigured
-            ? "在线链接需要登录后生成；协作者可改状态和评价，不会改动任务内容。"
-            : "当前未配置 Supabase，不能生成在线链接；可用独立 HTML 文件分享离线版本。"}
+            ? t(language, "shareHelpOnline")
+            : t(language, "shareHelpOffline")}
         </p>
         {plan?.shareToken ? (
-          <p className="mt-2 break-all rounded-lg bg-white/72 p-2 text-xs text-blossom-deep">分享 token：{plan.shareToken}</p>
+          <p className="mt-2 break-all rounded-lg bg-white/72 p-2 text-xs text-blossom-deep">{t(language, "shareToken", { token: plan.shareToken })}</p>
         ) : null}
       </motion.section>
 
       <motion.section className="glass-panel rounded-lg p-4" variants={fadeUp} whileHover={{ y: -2 }} transition={spring}>
         <h2 className="flex items-center gap-2 text-lg font-black">
           <Bot className="size-5 text-blossom-gold" />
-          AI 合理性建议
+          {t(language, "aiTitle")}
         </h2>
         <motion.button
           className="motion-sheen mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blossom-ink px-4 text-sm font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
@@ -1085,9 +1178,9 @@ function ControlPanel({
           whileTap={aiLoading ? undefined : { scale: 0.98 }}
         >
           {aiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-          {aiLoading ? "分析中" : "让 AI 看看是否合理"}
+          {aiLoading ? t(language, "aiAnalyzing") : t(language, "aiAnalyze")}
         </motion.button>
-        <AnimatePresence>{aiSuggestion ? <AiSuggestionView suggestion={aiSuggestion} /> : null}</AnimatePresence>
+        <AnimatePresence>{aiSuggestion ? <AiSuggestionView language={language} suggestion={aiSuggestion} /> : null}</AnimatePresence>
       </motion.section>
     </motion.div>
   );
@@ -1108,7 +1201,7 @@ function ActionButton({ icon: Icon, label, onClick }: { icon: typeof Save; label
   );
 }
 
-function AiSuggestionView({ suggestion }: { suggestion: AiSuggestion }) {
+function AiSuggestionView({ language, suggestion }: { language: Language; suggestion: AiSuggestion }) {
   return (
     <motion.div
       className="mt-4 space-y-3 text-sm text-blossom-ink"
@@ -1120,10 +1213,10 @@ function AiSuggestionView({ suggestion }: { suggestion: AiSuggestion }) {
       <motion.p className="rounded-lg bg-white/75 p-3 font-bold leading-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         {suggestion.summary}
       </motion.p>
-      <SuggestionList title="优点" items={suggestion.strengths} />
-      <SuggestionList title="风险" items={suggestion.risks} />
-      <SuggestionList title="修改建议" items={suggestion.revisions} />
-      <SuggestionList title="下一步" items={suggestion.nextSteps} />
+      <SuggestionList title={t(language, "suggestionStrengths")} items={suggestion.strengths} />
+      <SuggestionList title={t(language, "suggestionRisks")} items={suggestion.risks} />
+      <SuggestionList title={t(language, "suggestionRevisions")} items={suggestion.revisions} />
+      <SuggestionList title={t(language, "suggestionNextSteps")} items={suggestion.nextSteps} />
     </motion.div>
   );
 }
@@ -1151,16 +1244,20 @@ function SuggestionList({ items, title }: { items: string[]; title: string }) {
 
 function AuthPanel({
   cloudConfigured,
+  language,
   onLocalRole,
   onNotice,
+  roleMeta,
   onSignedOut,
   onSuccess,
   session,
   supabase
 }: {
   cloudConfigured: boolean;
+  language: Language;
   onLocalRole: (role: UserRole) => void;
   onNotice: (notice: Notice) => void;
+  roleMeta: ReturnType<typeof getRoleMeta>;
   onSignedOut: () => void;
   onSuccess: (session: Session | null) => void;
   session: Session | null;
@@ -1195,7 +1292,7 @@ function AuthPanel({
     });
 
     if (!response.ok) {
-      throw new Error(await parseApiError(response));
+      throw new Error(await parseApiError(response, language));
     }
 
     const data = (await response.json()) as { email: string };
@@ -1208,8 +1305,8 @@ function AuthPanel({
     if (!supabase || !cloudConfigured) {
       enterLocalMode(
         mode === "register"
-          ? "已用本地账号进入。当前计划会保存在这个浏览器里；配置 Supabase 后可开启云同步。"
-          : "已用本地模式进入。当前计划会保存在这个浏览器里。"
+          ? t(language, "notices.localRegister")
+          : t(language, "notices.localLogin")
       );
       return;
     }
@@ -1227,7 +1324,7 @@ function AuthPanel({
           throw error;
         }
 
-        onNotice({ tone: "success", text: "登录成功，正在读取云端计划。" });
+        onNotice({ tone: "success", text: t(language, "notices.loginSuccess") });
         onSuccess(data.session);
       } else {
         const { data, error } = await supabase.auth.signUp({
@@ -1247,10 +1344,10 @@ function AuthPanel({
         }
 
         if (data.session) {
-          onNotice({ tone: "success", text: "注册成功，已经登录。" });
+          onNotice({ tone: "success", text: t(language, "notices.registerSuccess") });
           onSuccess(data.session);
         } else {
-          enterLocalMode("注册已提交。当前项目可能开启了邮箱确认，我先让你进入本地模式继续使用。");
+          enterLocalMode(t(language, "notices.registerSubmitted"));
           setMode("login");
           setIdentifier(email);
         }
@@ -1258,7 +1355,7 @@ function AuthPanel({
     } catch (error) {
       onNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "账号操作失败。"
+        text: error instanceof Error ? error.message : t(language, "notices.authFailed")
       });
     } finally {
       setLoading(false);
@@ -1270,16 +1367,16 @@ function AuthPanel({
       await supabase.auth.signOut();
     }
     onSignedOut();
-    onNotice({ tone: "info", text: "已退出登录，本地计划仍会保留。" });
+    onNotice({ tone: "info", text: t(language, "notices.signedOut") });
   };
 
   if (session) {
     return (
       <motion.section className="paper-panel rounded-lg p-5" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={spring}>
-        <h2 className="text-xl font-black">账号已登录</h2>
+        <h2 className="text-xl font-black">{t(language, "signedIn")}</h2>
         <p className="mt-2 break-all text-sm text-blossom-deep/75">{session.user.email}</p>
         <motion.button className="motion-sheen mt-5 min-h-12 rounded-lg bg-blossom-ink px-5 text-sm font-black text-white" type="button" onClick={signOut} whileTap={{ scale: 0.98 }}>
-          退出登录
+          {t(language, "signOut")}
         </motion.button>
       </motion.section>
     );
@@ -1294,7 +1391,7 @@ function AuthPanel({
           onClick={() => setMode("login")}
           whileTap={{ scale: 0.98 }}
         >
-          登录
+          {t(language, "login")}
         </motion.button>
         <motion.button
           className={`min-h-11 flex-1 rounded-md text-sm font-black ${mode === "register" ? "bg-blossom-ink text-white" : "text-blossom-ink"}`}
@@ -1302,14 +1399,14 @@ function AuthPanel({
           onClick={() => setMode("register")}
           whileTap={{ scale: 0.98 }}
         >
-          注册新账号
+          {t(language, "register")}
         </motion.button>
       </div>
 
       <motion.form className="space-y-4" onSubmit={submit} variants={stagger}>
         {mode === "login" ? (
           <label className="block space-y-2">
-            <span className="text-sm font-black text-blossom-deep">邮箱或用户名</span>
+            <span className="text-sm font-black text-blossom-deep">{t(language, "emailOrUsername")}</span>
             <input
               className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white px-4 outline-none focus:border-blossom-deep"
               autoComplete="username"
@@ -1321,7 +1418,7 @@ function AuthPanel({
         ) : (
           <>
             <label className="block space-y-2">
-              <span className="text-sm font-black text-blossom-deep">邮箱</span>
+              <span className="text-sm font-black text-blossom-deep">{t(language, "email")}</span>
               <input
                 className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white px-4 outline-none focus:border-blossom-deep"
                 autoComplete="email"
@@ -1332,7 +1429,7 @@ function AuthPanel({
               />
             </label>
             <label className="block space-y-2">
-              <span className="text-sm font-black text-blossom-deep">用户名</span>
+              <span className="text-sm font-black text-blossom-deep">{t(language, "username")}</span>
               <input
                 className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white px-4 outline-none focus:border-blossom-deep"
                 autoComplete="username"
@@ -1342,19 +1439,19 @@ function AuthPanel({
               />
             </label>
             <label className="block space-y-2">
-              <span className="text-sm font-black text-blossom-deep">显示名称</span>
+              <span className="text-sm font-black text-blossom-deep">{t(language, "displayName")}</span>
               <input
                 className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white px-4 outline-none focus:border-blossom-deep"
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
               />
             </label>
-            <RoleSelector role={role} onChange={setRole} />
+            <RoleSelector language={language} role={role} roleMeta={roleMeta} onChange={setRole} />
           </>
         )}
 
         <label className="block space-y-2">
-          <span className="text-sm font-black text-blossom-deep">密码</span>
+          <span className="text-sm font-black text-blossom-deep">{t(language, "password")}</span>
           <input
             className="min-h-12 w-full rounded-lg border border-blossom-deep/15 bg-white px-4 outline-none focus:border-blossom-deep"
             autoComplete={mode === "login" ? "current-password" : "new-password"}
@@ -1373,30 +1470,40 @@ function AuthPanel({
           whileTap={loading ? undefined : { scale: 0.98 }}
         >
           {loading ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
-          {mode === "login" ? "登录账号" : "注册并进入"}
+          {mode === "login" ? t(language, "loginAccount") : t(language, "registerAndEnter")}
         </motion.button>
 
         <motion.button
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white px-5 text-sm font-black text-blossom-ink"
           type="button"
-          onClick={() => onNotice({ tone: "info", text: "微信登录入口已保留。接入真实微信 OAuth 需要 AppID、Secret 和回调域名。" })}
+          onClick={() => onNotice({ tone: "info", text: t(language, "notices.wechatTodo") })}
           whileHover={{ y: -2 }}
           whileTap={{ scale: 0.98 }}
         >
           <Users className="size-4" />
-          微信登录（待配置）
+          {t(language, "wechatLogin")}
         </motion.button>
       </motion.form>
     </motion.section>
   );
 }
 
-function RoleSelector({ role, onChange }: { role: UserRole; onChange: (role: UserRole) => void }) {
+function RoleSelector({
+  language,
+  role,
+  roleMeta,
+  onChange
+}: {
+  language: Language;
+  role: UserRole;
+  roleMeta: ReturnType<typeof getRoleMeta>;
+  onChange: (role: UserRole) => void;
+}) {
   return (
     <div>
-      <div className="mb-2 text-sm font-black text-blossom-deep">预设角色</div>
+      <div className="mb-2 text-sm font-black text-blossom-deep">{t(language, "presetRole")}</div>
       <div className="grid grid-cols-2 gap-2">
-        {(Object.keys(ROLE_META) as UserRole[]).map((item) => (
+        {(Object.keys(roleMeta) as UserRole[]).map((item) => (
           <motion.button
             key={item}
             className={`min-h-11 rounded-lg border px-3 text-sm font-black ${
@@ -1404,11 +1511,11 @@ function RoleSelector({ role, onChange }: { role: UserRole; onChange: (role: Use
             }`}
             type="button"
             onClick={() => onChange(item)}
-            title={ROLE_META[item].description}
+            title={roleMeta[item].description}
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.97 }}
           >
-            {ROLE_META[item].label}
+            {roleMeta[item].label}
           </motion.button>
         ))}
       </div>
@@ -1417,11 +1524,13 @@ function RoleSelector({ role, onChange }: { role: UserRole; onChange: (role: Use
 }
 
 function MobileDock({
+  language,
   onCreatePlan,
   onShare,
   onSync,
   onViewChange
 }: {
+  language: Language;
   onCreatePlan: () => void;
   onShare: () => void;
   onSync: () => void;
@@ -1434,10 +1543,10 @@ function MobileDock({
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
     >
-      <DockButton icon={PanelTop} label="仪表盘" onClick={() => onViewChange("dashboard")} />
-      <DockButton icon={Plus} label="新建" onClick={onCreatePlan} />
-      <DockButton icon={Save} label="保存" onClick={onSync} />
-      <DockButton icon={Link2} label="分享" onClick={onShare} />
+      <DockButton icon={PanelTop} label={t(language, "dockDashboard")} onClick={() => onViewChange("dashboard")} />
+      <DockButton icon={Plus} label={t(language, "dockNew")} onClick={onCreatePlan} />
+      <DockButton icon={Save} label={t(language, "dockSave")} onClick={onSync} />
+      <DockButton icon={Link2} label={t(language, "dockShare")} onClick={onShare} />
     </motion.nav>
   );
 }

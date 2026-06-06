@@ -1,4 +1,5 @@
 import type { Evaluations, WeekPlan, WeekTask } from "@/types/planner";
+import { getDefaultPlanText, type Language } from "@/lib/i18n";
 
 export const defaultEvaluations = (): Evaluations => ({
   self: "",
@@ -22,42 +23,31 @@ export const makeId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-export const createTask = (order = 0): WeekTask => ({
+export const createTask = (order = 0, language: Language = "zh"): WeekTask => ({
   id: makeId(),
-  title: "新的小计划",
+  title: getDefaultPlanText(language).taskTitle,
   detail: "",
   date: isoDate(new Date()),
   status: "pending",
   order
 });
 
-export const createDefaultPlan = (): WeekPlan => {
+export const createDefaultPlan = (language: Language = "zh"): WeekPlan => {
   const today = new Date();
+  const defaults = getDefaultPlanText(language);
 
   return {
     id: makeId(),
-    title: "我的杏花周计划",
-    bigGoal: "写下这周最重要的大目标，并把它拆成可以完成的小计划。",
+    title: defaults.planTitle,
+    bigGoal: defaults.bigGoal,
     startDate: isoDate(today),
     endDate: isoDate(addDays(today, 6)),
     role: "student",
-    tasks: [
-      {
-        ...createTask(0),
-        title: "明确本周最重要的一件事",
-        detail: "把大目标写成一句可以检查结果的话。"
-      },
-      {
-        ...createTask(1),
-        title: "安排每天的一个关键行动",
-        detail: "每天只保留一个必须完成的核心任务。"
-      },
-      {
-        ...createTask(2),
-        title: "周末复盘并填写评价",
-        detail: "记录高质完成、基本完成、停止和推迟的原因。"
-      }
-    ],
+    tasks: defaults.tasks.map((task, index) => ({
+      ...createTask(index, language),
+      title: task.title,
+      detail: task.detail
+    })),
     evaluations: defaultEvaluations(),
     updatedAt: new Date().toISOString()
   };

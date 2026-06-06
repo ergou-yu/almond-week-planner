@@ -2,7 +2,8 @@
 
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, StandardFonts, type Color, type PDFFont, type PDFPage } from "pdf-lib";
-import { EVALUATION_META, STATUS_META, STATUS_ORDER } from "@/lib/status";
+import { STATUS_ORDER } from "@/lib/status";
+import { getEvaluationMeta, getStatusMeta, normalizeLanguage, t, type Language } from "@/lib/i18n";
 import type { TaskStatus, WeekPlan } from "@/types/planner";
 
 const downloadBlob = (blob: Blob, filename: string) => {
@@ -124,7 +125,10 @@ const drawRule = (page: PDFPage, y: number) => {
   });
 };
 
-export const exportPlanPdf = async (plan: WeekPlan) => {
+export const exportPlanPdf = async (plan: WeekPlan, options: { language?: Language } = {}) => {
+  const language = normalizeLanguage(options.language);
+  const statusMeta = getStatusMeta(language);
+  const evaluationMeta = getEvaluationMeta(language);
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
 
@@ -154,23 +158,42 @@ export const exportPlanPdf = async (plan: WeekPlan) => {
 
   drawBackground(page);
 
-  drawMixedText(page, plan.title || "我的周计划", cjkFont, latinBoldFont, 22, margin, y, rgb(0.09, 0.23, 0.32));
+  drawMixedText(page, plan.title || t(language, "export.pdfTitleFallback"), cjkFont, latinBoldFont, 22, margin, y, rgb(0.09, 0.23, 0.32));
   y -= 28;
 
-  drawMixedText(page, `计划周期：${plan.startDate || "未设置"} 至 ${plan.endDate || "未设置"}`, cjkFont, latinFont, 11, margin, y, rgb(0.27, 0.39, 0.46));
+  drawMixedText(
+    page,
+    t(language, "export.period", { start: plan.startDate || t(language, "unset"), end: plan.endDate || t(language, "unset") }),
+    cjkFont,
+    latinFont,
+    11,
+    margin,
+    y,
+    rgb(0.27, 0.39, 0.46)
+  );
   y -= 24;
 
-  y = drawWrapped(page, `大计划：${plan.bigGoal || "未填写"}`, cjkFont, latinFont, 11, margin, y, pageWidth - margin * 2, 16);
+  y = drawWrapped(
+    page,
+    t(language, "export.bigGoal", { goal: plan.bigGoal || t(language, "unfilled") }),
+    cjkFont,
+    latinFont,
+    11,
+    margin,
+    y,
+    pageWidth - margin * 2,
+    16
+  );
   y -= 14;
 
   drawRule(page, y);
   y -= 24;
 
-  drawMixedText(page, "状态说明", cjkFont, latinBoldFont, 13, margin, y, rgb(0.09, 0.23, 0.32));
+  drawMixedText(page, t(language, "export.statusLegend"), cjkFont, latinBoldFont, 13, margin, y, rgb(0.09, 0.23, 0.32));
   y -= 20;
 
   STATUS_ORDER.filter((status) => status !== "pending").forEach((status, index) => {
-    const meta = STATUS_META[status];
+    const meta = statusMeta[status];
     const x = margin + index * 126;
     page.drawRectangle({
       x,
@@ -183,11 +206,11 @@ export const exportPlanPdf = async (plan: WeekPlan) => {
   });
   y -= 28;
 
-  drawMixedText(page, "小计划与完成状态", cjkFont, latinBoldFont, 13, margin, y, rgb(0.09, 0.23, 0.32));
+  drawMixedText(page, t(language, "export.tasksAndStatus"), cjkFont, latinBoldFont, 13, margin, y, rgb(0.09, 0.23, 0.32));
   y -= 18;
 
   plan.tasks.forEach((task, taskIndex) => {
-    const detailLines = wrapText(task.detail || "没有补充说明", cjkFont, latinFont, 9, 250).slice(0, 3);
+    const detailLines = wrapText(task.detail || t(language, "noDetail"), cjkFont, latinFont, 9, 250).slice(0, 3);
     const rowHeight = Math.max(86, 58 + detailLines.length * 13);
     ensureSpace(rowHeight + 12);
 
@@ -205,15 +228,15 @@ export const exportPlanPdf = async (plan: WeekPlan) => {
     });
 
     drawMixedText(page, `${taskIndex + 1}.`, cjkFont, latinBoldFont, 12, margin + 12, rowTop - 22, rgb(0.09, 0.23, 0.32));
-    drawWrapped(page, task.title || "未命名任务", cjkFont, latinBoldFont, 12, margin + 40, rowTop - 22, 250, 14, rgb(0.09, 0.23, 0.32));
-    drawMixedText(page, `日期：${task.date || "未指定"}`, cjkFont, latinFont, 9, margin + 40, rowTop - 42, rgb(0.38, 0.46, 0.52));
+    drawWrapped(page, task.title || t(language, "unnamedTask"), cjkFont, latinBoldFont, 12, margin + 40, rowTop - 22, 250, 14, rgb(0.09, 0.23, 0.32));
+    drawMixedText(page, t(language, "export.date", { date: task.date || t(language, "noDate") }), cjkFont, latinFont, 9, margin + 40, rowTop - 42, rgb(0.38, 0.46, 0.52));
 
     detailLines.forEach((line, index) => {
       drawMixedText(page, line, cjkFont, latinFont, 9, margin + 40, rowTop - 58 - index * 13, rgb(0.25, 0.33, 0.38));
     });
 
     statusValues.forEach((status, statusIndex) => {
-      const meta = STATUS_META[status];
+      const meta = statusMeta[status];
       const checkbox = form.createCheckBox(`task_${task.id}_${status}`);
       if (task.status === status) {
         checkbox.check();
@@ -235,10 +258,10 @@ export const exportPlanPdf = async (plan: WeekPlan) => {
   });
 
   y -= 4;
-  drawMixedText(page, "评价区", cjkFont, latinBoldFont, 13, margin, y, rgb(0.09, 0.23, 0.32));
+  drawMixedText(page, t(language, "export.evaluations"), cjkFont, latinBoldFont, 13, margin, y, rgb(0.09, 0.23, 0.32));
   y -= 18;
 
-  Object.entries(EVALUATION_META).forEach(([key, meta]) => {
+  Object.entries(evaluationMeta).forEach(([key, meta]) => {
     ensureSpace(104);
 
     drawMixedText(page, meta.label, cjkFont, latinBoldFont, 11, margin, y, rgb(0.09, 0.23, 0.32));
@@ -268,12 +291,15 @@ export const exportPlanPdf = async (plan: WeekPlan) => {
 
 const escapeScriptData = (value: string) => value.replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
 
-export const exportPlanHtml = (plan: WeekPlan) => {
+export const exportPlanHtml = (plan: WeekPlan, options: { language?: Language } = {}) => {
+  const language = normalizeLanguage(options.language);
+  const statusMeta = getStatusMeta(language);
+  const evaluationMeta = getEvaluationMeta(language);
   const planJson = escapeScriptData(JSON.stringify(plan));
   const apiOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
   const html = `<!doctype html>
-<html lang="zh-CN">
+<html lang="${language === "zh" ? "zh-CN" : language}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -304,17 +330,25 @@ export const exportPlanHtml = (plan: WeekPlan) => {
     <h1 id="title"></h1>
     <p id="dates"></p>
   </header>
-  <section class="goal"><strong>大计划</strong><p id="goal"></p></section>
+  <section class="goal"><strong>${t(language, "export.htmlGoal")}</strong><p id="goal"></p></section>
   <section id="tasks" class="grid"></section>
   <section id="evals" class="evals"></section>
-  <div id="sync" class="sync">离线文件已加载。修改会保存在这个浏览器里；如果包含在线分享 token，也会尝试同步。</div>
+  <div id="sync" class="sync">${t(language, "export.offlineLoaded")}</div>
 </main>
 <script>
 const plan = ${planJson};
-const statusMeta = ${JSON.stringify(STATUS_META)};
+const statusMeta = ${JSON.stringify(statusMeta)};
 const statusValues = ["excellent", "basic", "stopped", "postponed"];
-const evalMeta = ${JSON.stringify(EVALUATION_META)};
+const evalMeta = ${JSON.stringify(evaluationMeta)};
 const apiOrigin = ${JSON.stringify(apiOrigin)};
+const text = ${JSON.stringify({
+  to: language === "en" ? " to " : language === "ko" ? " ~ " : " 至 ",
+  noDetail: t(language, "noDetail"),
+  noDate: t(language, "noDate"),
+  syncingOnline: t(language, "export.syncingOnline"),
+  syncedOnline: t(language, "export.syncedOnline"),
+  syncOnlineFailed: t(language, "export.syncOnlineFailed")
+})};
 const key = "almond-export-" + plan.id;
 const saved = JSON.parse(localStorage.getItem(key) || "null");
 if (saved) {
@@ -328,7 +362,7 @@ const save = async () => {
   };
   localStorage.setItem(key, JSON.stringify(payload));
   if (plan.shareToken && apiOrigin) {
-    document.getElementById("sync").textContent = "正在同步在线状态...";
+    document.getElementById("sync").textContent = text.syncingOnline;
     try {
       await fetch(apiOrigin + "/api/share/" + plan.shareToken, {
         method: "PATCH",
@@ -338,14 +372,14 @@ const save = async () => {
           evaluations: plan.evaluations
         })
       });
-      document.getElementById("sync").textContent = "已同步到在线分享链接。";
+      document.getElementById("sync").textContent = text.syncedOnline;
     } catch {
-      document.getElementById("sync").textContent = "在线同步失败，但本地文件状态已保存。";
+      document.getElementById("sync").textContent = text.syncOnlineFailed;
     }
   }
 };
 document.getElementById("title").textContent = plan.title;
-document.getElementById("dates").textContent = plan.startDate + " 至 " + plan.endDate;
+document.getElementById("dates").textContent = plan.startDate + text.to + plan.endDate;
 document.getElementById("goal").textContent = plan.bigGoal;
 const taskRoot = document.getElementById("tasks");
 const renderTasks = () => {
@@ -355,8 +389,8 @@ const renderTasks = () => {
     card.className = "card";
     card.innerHTML = '<div class="task-title"></div><p></p><small></small><div class="status"></div>';
     card.querySelector(".task-title").textContent = task.title;
-    card.querySelector("p").textContent = task.detail || "没有补充说明";
-    card.querySelector("small").textContent = task.date || "未指定日期";
+    card.querySelector("p").textContent = task.detail || text.noDetail;
+    card.querySelector("small").textContent = task.date || text.noDate;
     const box = card.querySelector(".status");
     statusValues.forEach(status => {
       const button = document.createElement("button");

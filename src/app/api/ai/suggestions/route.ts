@@ -1,13 +1,6 @@
 import { errorResponse, jsonResponse } from "@/lib/api";
+import { getFallbackSuggestion, languageNames, normalizeLanguage } from "@/lib/i18n";
 import type { AiSuggestion, WeekPlan } from "@/types/planner";
-
-const fallbackSuggestion: AiSuggestion = {
-  summary: "AI 建议暂时不可用，但你仍然可以先按大目标、关键行动和复盘评价推进。",
-  strengths: ["计划已经包含大目标、小计划、日期和状态，具备复盘基础。"],
-  risks: ["如果小计划过多或描述过宽，执行时可能难以判断是否完成。"],
-  revisions: ["把每个小计划改成可观察的行动，例如“完成 20 道题并订正错题”。"],
-  nextSteps: ["先选择本周最重要的 3 个任务，再安排每天的具体时间。"]
-};
 
 const extractResponsesText = (data: unknown) => {
   const value = data as {
@@ -29,7 +22,10 @@ const extractResponsesText = (data: unknown) => {
 };
 
 export async function POST(request: Request) {
-  const plan = (await request.json().catch(() => null)) as WeekPlan | null;
+  const body = (await request.json().catch(() => null)) as WeekPlan | { plan?: WeekPlan; language?: string } | null;
+  const plan = body && "plan" in body ? body.plan ?? null : (body as WeekPlan | null);
+  const language = normalizeLanguage(body && "language" in body ? body.language : undefined);
+  const fallbackSuggestion = getFallbackSuggestion(language);
 
   if (!plan) {
     return errorResponse("计划数据不完整。");
@@ -39,29 +35,37 @@ export async function POST(request: Request) {
     return jsonResponse(
       {
         suggestion: fallbackSuggestion,
-        notice: "未配置 OPENAI_API_KEY，当前返回本地兜底建议。"
+        notice:
+          language === "zh"
+            ? "未配置 OPENAI_API_KEY，当前返回本地兜底建议。"
+            : language === "ja"
+              ? "OPENAI_API_KEY が未設定のため、ローカルの予備提案を返しています。"
+              : language === "ko"
+                ? "OPENAI_API_KEY가 설정되지 않아 로컬 기본 제안을 반환합니다."
+                : "OPENAI_API_KEY is not configured, so a local fallback suggestion is returned."
       },
       { status: 200 }
     );
   }
 
-  const prompt = `你是一位严谨但鼓励人的学习计划教练。请分析下面的周计划，输出严格 JSON，不要 markdown。
+  const prompt = `You are a rigorous but encouraging weekly learning-plan coach. Analyze the weekly plan below and respond in ${languageNames[language]}. Output strict JSON only, no markdown.
 
 JSON schema:
 {
-  "summary": "一句话总体判断",
-  "strengths": ["优点1", "优点2"],
-  "risks": ["风险1", "风险2"],
-  "revisions": ["可直接修改的建议1", "可直接修改的建议2"],
-  "nextSteps": ["下一步行动1", "下一步行动2"]
+  "summary": "one-sentence overall judgment",
+  "strengths": ["strength 1", "strength 2"],
+  "risks": ["risk 1", "risk 2"],
+  "revisions": ["specific revision 1", "specific revision 2"],
+  "nextSteps": ["next action 1", "next action 2"]
 }
 
-要求：
-- 重点判断目标是否合理、任务是否可执行、时间是否拥挤。
-- 建议要具体、温和、可执行。
-- 不要替用户编造不存在的背景。
+Requirements:
+- Focus on whether the goal is reasonable, whether tasks are executable, and whether time is crowded.
+- Make suggestions specific, kind, and actionable.
+- Do not invent background details that the user did not provide.
+- All string values in the JSON must be in ${languageNames[language]}.
 
-周计划:
+Weekly plan:
 ${JSON.stringify(plan, null, 2)}`;
 
   try {
