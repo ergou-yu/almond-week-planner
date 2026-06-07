@@ -10,7 +10,7 @@ const spring = {
   damping: 24
 } as const;
 
-const downloadHref = "/downloads/杏花周计划-android-v0.1.0.apk";
+const downloadHref = "/downloads/almond-week-planner-android-v0.1.0.apk";
 
 const platformRoadmap = [
   { name: "Android APK", status: "测试包开放下载", icon: Smartphone },

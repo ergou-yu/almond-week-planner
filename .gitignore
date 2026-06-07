@@ -11,3 +11,18 @@ coverage
 .vercel
 android-signing/
 twa-build/
+
+# Bubblewrap / Android local build outputs
+/.gradle/
+/app/
+/gradle/
+/gradlew
+/gradlew.bat
+/build.gradle
+/gradle.properties
+/settings.gradle
+/manifest-checksum.txt
+/store_icon.png
+/app-release-*.apk
+/app-release-*.aab
+public/downloads/*.idsig

@@ -24,7 +24,7 @@ public/.well-known/assetlinks.json
 - APK output path for the website download link:
 
 ```text
-public/downloads/杏花周计划-android-v0.1.0.apk
+public/downloads/almond-week-planner-android-v0.1.0.apk
 ```
 
 ## Expected build flow
@@ -32,6 +32,6 @@ public/downloads/杏花周计划-android-v0.1.0.apk
 1. Build and deploy the web app so `manifest.webmanifest` and `assetlinks.json` are available on the production domain.
 2. Generate or reuse the local release keystore in `android-signing/`.
 3. Build the Trusted Web Activity Android project with Bubblewrap.
-4. Copy the signed release APK to `public/downloads/杏花周计划-android-v0.1.0.apk`.
+4. Copy the signed release APK to `public/downloads/almond-week-planner-android-v0.1.0.apk`.
 5. Run `npm run typecheck` and `npm run build`.
 6. Deploy the site so the homepage download button serves the APK.
