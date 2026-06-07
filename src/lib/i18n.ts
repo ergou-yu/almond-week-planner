@@ -68,6 +68,12 @@ type TranslationTree = {
   shareHelpOnline: string;
   shareHelpOffline: string;
   shareToken: string;
+  shareUrl: string;
+  openShareLink: string;
+  copyShareLink: string;
+  copiedShareLink: string;
+  completionTitle: string;
+  completionSubtitle: string;
   aiTitle: string;
   aiAnalyze: string;
   aiAnalyzing: string;
@@ -208,6 +214,12 @@ const dictionaries: Record<Language, TranslationTree> = {
     shareHelpOnline: "在线链接需要登录后生成；协作者可改状态和评价，不会改动任务内容。",
     shareHelpOffline: "当前未配置 Supabase，不能生成在线链接；可用独立 HTML 文件分享离线版本。",
     shareToken: "分享 token：{token}",
+    shareUrl: "分享链接：{url}",
+    openShareLink: "打开分享链接",
+    copyShareLink: "复制链接",
+    copiedShareLink: "已复制",
+    completionTitle: "这一轮开花了",
+    completionSubtitle: "所有任务都完成了，给自己一个很认真、很漂亮的肯定。",
     aiTitle: "AI 合理性建议",
     aiAnalyze: "让 AI 看看是否合理",
     aiAnalyzing: "分析中",
@@ -346,6 +358,12 @@ const dictionaries: Record<Language, TranslationTree> = {
     shareHelpOnline: "Create a link after logging in; collaborators can update status and reviews without editing task content.",
     shareHelpOffline: "Supabase is not configured, so online links are unavailable. You can export a standalone HTML file instead.",
     shareToken: "Share token: {token}",
+    shareUrl: "Share link: {url}",
+    openShareLink: "Open Share Link",
+    copyShareLink: "Copy Link",
+    copiedShareLink: "Copied",
+    completionTitle: "This week has blossomed",
+    completionSubtitle: "All tasks are complete. Take the win seriously; you earned it.",
     aiTitle: "AI Reasonableness Check",
     aiAnalyze: "Ask AI to Review",
     aiAnalyzing: "Analyzing",
@@ -484,6 +502,12 @@ const dictionaries: Record<Language, TranslationTree> = {
     shareHelpOnline: "リンクはログイン後に作成できます。共同編集者は状態と評価だけを変更でき、タスク本文は変更できません。",
     shareHelpOffline: "Supabase が未設定のためオンラインリンクは使えません。単体 HTML を共有できます。",
     shareToken: "共有 token：{token}",
+    shareUrl: "共有リンク：{url}",
+    openShareLink: "共有リンクを開く",
+    copyShareLink: "リンクをコピー",
+    copiedShareLink: "コピー済み",
+    completionTitle: "今週、花が咲きました",
+    completionSubtitle: "すべてのタスクが完了しました。この達成をきちんと受け取りましょう。",
     aiTitle: "AI 妥当性チェック",
     aiAnalyze: "AI に確認してもらう",
     aiAnalyzing: "分析中",
@@ -622,6 +646,12 @@ const dictionaries: Record<Language, TranslationTree> = {
     shareHelpOnline: "온라인 링크는 로그인 후 생성됩니다. 협업자는 상태와 평가만 수정할 수 있고 과제 내용은 바꾸지 못합니다.",
     shareHelpOffline: "Supabase가 설정되지 않아 온라인 링크를 만들 수 없습니다. 단일 HTML 파일로 공유할 수 있습니다.",
     shareToken: "공유 token: {token}",
+    shareUrl: "공유 링크: {url}",
+    openShareLink: "공유 링크 열기",
+    copyShareLink: "링크 복사",
+    copiedShareLink: "복사됨",
+    completionTitle: "이번 주가 피어났어요",
+    completionSubtitle: "모든 과제를 완료했습니다. 이 성취를 제대로 인정해 주세요.",
     aiTitle: "AI 합리성 제안",
     aiAnalyze: "AI에게 검토 요청",
     aiAnalyzing: "분석 중",

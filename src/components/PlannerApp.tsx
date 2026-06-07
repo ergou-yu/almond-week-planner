@@ -7,7 +7,9 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardList,
+  Copy,
   Download,
+  ExternalLink,
   FileDown,
   Home,
   Leaf,
@@ -24,6 +26,7 @@ import {
 } from "lucide-react";
 import type { Session, User } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CompletionCelebration } from "@/components/CompletionCelebration";
 import { exportPlanHtml, exportPlanPdf } from "@/lib/exporters";
 import {
   getBrowserLanguage,
@@ -77,6 +80,23 @@ const parseApiError = async (response: Response, language: Language) => {
   const data = (await response.json().catch(() => null)) as { error?: string } | null;
   return data?.error || response.statusText || t(language, "notices.requestFailed");
 };
+
+const mergeLocalTaskPriorities = (cloudPlans: WeekPlan[], localPlans: WeekPlan[]) =>
+  cloudPlans.map((cloudPlan) => {
+    const localPlan = localPlans.find((plan) => plan.id === cloudPlan.id);
+    if (!localPlan) {
+      return cloudPlan;
+    }
+
+    const localPriorities = new Map(localPlan.tasks.map((task) => [task.id, task.priority]));
+    return {
+      ...cloudPlan,
+      tasks: cloudPlan.tasks.map((task) => ({
+        ...task,
+        priority: task.priority === "medium" ? localPriorities.get(task.id) ?? task.priority : task.priority
+      }))
+    };
+  });
 
 const fadeUp = {
   hidden: { opacity: 0, y: 18 },
@@ -269,7 +289,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
 
         const data = (await response.json()) as { plans: WeekPlan[] };
         const currentLocalPlans = plansRef.current;
-        const next = data.plans.length ? data.plans : currentLocalPlans;
+        const next = data.plans.length ? mergeLocalTaskPriorities(data.plans, currentLocalPlans) : currentLocalPlans;
         updatePlansState(next.length ? next : [createDefaultPlan(language)], next[0]?.id);
         loadedCloudUserRef.current = currentSession.user.id;
         setNotice({ tone: "success", text: t(language, "notices.loadedCloud") });
@@ -431,7 +451,8 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
   };
 
   const createShareLink = async () => {
-    if (!activePlan) {
+    const currentPlan = getCurrentActivePlan();
+    if (!currentPlan) {
       return;
     }
 
@@ -446,7 +467,6 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       return;
     }
 
-    await syncNow();
     const authHeader = getAuthHeader(session);
     if (!authHeader) {
       return;
@@ -454,7 +474,17 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
 
     setSyncing(true);
     try {
-      const response = await fetch(`/api/plans/${activePlan.id}/share`, {
+      if (syncTimer.current) {
+        clearTimeout(syncTimer.current);
+      }
+
+      const version = editVersionRef.current;
+      const saved = await savePlanToCloud(currentPlan, { quiet: true, version });
+      if (!saved) {
+        throw new Error(t(language, "notices.syncFailed"));
+      }
+
+      const response = await fetch(`/api/plans/${currentPlan.id}/share`, {
         method: "POST",
         headers: {
           Authorization: authHeader
@@ -466,7 +496,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       }
 
       const data = (await response.json()) as { token: string; url: string };
-      const next = { ...activePlan, shareToken: data.token };
+      const next = { ...saved, shareToken: data.token };
       replacePlan(next, { markDirty: false, sync: false });
       await navigator.clipboard?.writeText(data.url).catch(() => undefined);
       setNotice({ tone: "success", text: t(language, "notices.shareCreated", { url: data.url }) });
@@ -676,6 +706,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
       </section>
 
       <MobileDock language={language} onCreatePlan={createPlan} onShare={createShareLink} onSync={syncNow} onViewChange={setView} />
+      <CompletionCelebration language={language} plan={activePlan} />
     </main>
   );
 }
@@ -1266,7 +1297,7 @@ function ControlPanel({
             : t(language, "shareHelpOffline")}
         </p>
         {plan?.shareToken ? (
-          <p className="mt-2 break-all rounded-lg bg-white/72 p-2 text-xs text-blossom-deep">{t(language, "shareToken", { token: plan.shareToken })}</p>
+          <ShareLinkTools language={language} token={plan.shareToken} />
         ) : null}
       </motion.section>
 
@@ -1289,6 +1320,38 @@ function ControlPanel({
         <AnimatePresence>{aiSuggestion ? <AiSuggestionView language={language} suggestion={aiSuggestion} /> : null}</AnimatePresence>
       </motion.section>
     </motion.div>
+  );
+}
+
+function ShareLinkTools({ language, token }: { language: Language; token: string }) {
+  const [copied, setCopied] = useState(false);
+  const href = `/share/${token}`;
+  const url = typeof window === "undefined" ? href : `${window.location.origin}${href}`;
+
+  const copy = async () => {
+    await navigator.clipboard?.writeText(url).catch(() => undefined);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-blossom-deep/10 bg-white/72 p-2">
+      <p className="break-all text-xs font-bold text-blossom-deep/72">{t(language, "shareUrl", { url })}</p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <Link className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-blossom-ink px-3 text-xs font-black text-white" href={href} target="_blank">
+          <ExternalLink className="size-4" />
+          {t(language, "openShareLink")}
+        </Link>
+        <button
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white px-3 text-xs font-black text-blossom-ink"
+          type="button"
+          onClick={copy}
+        >
+          <Copy className="size-4" />
+          {copied ? t(language, "copiedShareLink") : t(language, "copyShareLink")}
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Download, FileDown, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CompletionCelebration } from "@/components/CompletionCelebration";
 import { exportPlanHtml, exportPlanPdf } from "@/lib/exporters";
 import { getBrowserLanguage, getEvaluationMeta, getPriorityMeta, getStatusMeta, languageLabels, languages, t, type Language } from "@/lib/i18n";
 import { STATUS_ORDER } from "@/lib/status";
@@ -37,6 +38,7 @@ export function SharePlanView({ token }: SharePlanViewProps) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(() => t(getBrowserLanguage(), "share.loadingMessage"));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveVersionRef = useRef(0);
   const statusMeta = getStatusMeta(language);
   const priorityMeta = getPriorityMeta(language);
   const evaluationMeta = getEvaluationMeta(language);
@@ -76,6 +78,11 @@ export function SharePlanView({ token }: SharePlanViewProps) {
 
   useEffect(() => {
     void loadPlan();
+    return () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+      }
+    };
   }, [loadPlan]);
 
   const patchPlan = useCallback(
@@ -83,6 +90,8 @@ export function SharePlanView({ token }: SharePlanViewProps) {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
       }
+      const version = saveVersionRef.current + 1;
+      saveVersionRef.current = version;
 
       saveTimer.current = setTimeout(async () => {
         setSaving(true);
@@ -106,12 +115,18 @@ export function SharePlanView({ token }: SharePlanViewProps) {
             throw new Error(data?.error || t(language, "share.syncFailed"));
           }
 
-          setPlan(data.plan);
-          setMessage(t(language, "share.synced"));
+          if (version === saveVersionRef.current) {
+            setPlan(data.plan);
+            setMessage(t(language, "share.synced"));
+          }
         } catch (error) {
-          setMessage(error instanceof Error ? error.message : t(language, "share.syncFailed"));
+          if (version === saveVersionRef.current) {
+            setMessage(error instanceof Error ? error.message : t(language, "share.syncFailed"));
+          }
         } finally {
-          setSaving(false);
+          if (version === saveVersionRef.current) {
+            setSaving(false);
+          }
         }
       }, delay);
     },
@@ -315,6 +330,7 @@ export function SharePlanView({ token }: SharePlanViewProps) {
           </>
         ) : null}
       </div>
+      <CompletionCelebration language={language} plan={plan} />
     </main>
   );
 }

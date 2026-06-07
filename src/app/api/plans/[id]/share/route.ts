@@ -23,12 +23,14 @@ export async function POST(request: Request, context: RouteContext) {
     return errorResponse("没有权限分享这个计划。", 403);
   }
 
-  const { data: existing } = await supabase
+  const { data: existingLinks } = await supabase
     .from("share_links")
     .select("*")
     .eq("plan_id", id)
     .eq("permission", "status_review")
-    .maybeSingle();
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const existing = existingLinks?.find((link) => !link.expires_at || new Date(link.expires_at).getTime() > Date.now());
 
   const link = existing
     ? existing

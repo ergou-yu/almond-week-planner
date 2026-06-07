@@ -15,6 +15,7 @@ const corsHeaders = {
 };
 
 const planSelect = "*, tasks(*), evaluations(*)";
+const allowedStatuses = new Set<TaskStatus>(["pending", "excellent", "basic", "stopped", "postponed"]);
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -92,16 +93,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   const supabase = getSupabaseAdminClient();
 
   if (shared.link.can_update_status && Array.isArray(body.tasks)) {
-    for (const task of body.tasks) {
-      if (!["pending", "excellent", "basic", "stopped", "postponed"].includes(task.status)) {
-        continue;
-      }
+    const taskIds = new Set(shared.plan.tasks.map((task) => task.id));
+    const updates = body.tasks.filter((task) => taskIds.has(task.id) && allowedStatuses.has(task.status));
 
-      await supabase
+    for (const task of updates) {
+      const { error } = await supabase
         .from("tasks")
         .update({ status: task.status })
         .eq("id", task.id)
         .eq("plan_id", shared.plan.id);
+
+      if (error) {
+        return errorResponse(`任务状态保存失败：${error.message}`, 500);
+      }
+    }
+
+    if (updates.length > 0) {
+      const { error } = await supabase.from("plans").update({ updated_at: new Date().toISOString() }).eq("id", shared.plan.id);
+      if (error) {
+        return errorResponse(`计划刷新失败：${error.message}`, 500);
+      }
     }
   }
 
@@ -112,7 +123,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         continue;
       }
 
-      await supabase.from("evaluations").upsert(
+      const { error } = await supabase.from("evaluations").upsert(
         {
           plan_id: shared.plan.id,
           kind,
@@ -120,6 +131,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
         { onConflict: "plan_id,kind" }
       );
+
+      if (error) {
+        return errorResponse(`评价保存失败：${error.message}`, 500);
+      }
     }
   }
 
