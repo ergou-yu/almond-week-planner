@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.almondweek.planner",
+      "sha256_cert_fingerprints": [
+        "CC:34:CD:47:9F:34:65:9F:DC:9F:D1:0E:9A:91:3A:48:92:A4:4F:D9:99:EB:23:CC:F2:5C:E1:3D:3C:4B:ED:F6"
+      ]
+    }
+  }
+]

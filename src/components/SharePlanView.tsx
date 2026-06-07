@@ -173,7 +173,7 @@ export function SharePlanView({ token }: SharePlanViewProps) {
       <div className="petal petal-b" />
       <div className="petal petal-d" />
       <div className="petal petal-e" />
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-6xl 2xl:max-w-[1680px]">
         <motion.header
           className="mb-5 flex flex-wrap items-center justify-between gap-3"
           initial={{ opacity: 0, y: -12 }}
@@ -251,7 +251,7 @@ export function SharePlanView({ token }: SharePlanViewProps) {
 
         {plan ? (
           <>
-            <motion.section className="mt-5 grid gap-4 md:grid-cols-2" initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}>
+            <motion.section className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3" initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}>
               {plan.tasks.map((task, index) => (
                 <motion.article
                   key={task.id}

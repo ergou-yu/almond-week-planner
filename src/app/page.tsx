@@ -1,5 +1,5 @@
-import { PlannerApp } from "@/components/PlannerApp";
+import { MarketingHome } from "@/components/MarketingHome";
 
 export default function Home() {
-  return <PlannerApp initialView="editor" />;
+  return <MarketingHome />;
 }

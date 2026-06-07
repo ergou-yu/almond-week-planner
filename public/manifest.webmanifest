@@ -1,0 +1,29 @@
+{
+  "name": "杏花周计划",
+  "short_name": "杏花周计划",
+  "description": "梵高杏花风格的周计划、协作评价与互动 PDF 工具",
+  "id": "/app",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "background_color": "#fff8ef",
+  "theme_color": "#174663",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "categories": ["productivity", "education"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

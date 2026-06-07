@@ -9,3 +9,5 @@ build
 *.tsbuildinfo
 coverage
 .vercel
+android-signing/
+twa-build/

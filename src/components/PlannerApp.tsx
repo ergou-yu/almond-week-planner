@@ -596,7 +596,7 @@ export function PlannerApp({ initialView }: PlannerAppProps) {
         onViewChange={setView}
       />
 
-      <section className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-8 pt-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:pt-8">
+      <section className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-8 pt-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:pt-8 2xl:max-w-[1680px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0">
           <HeroPanel activePlan={activePlan} language={language} onViewDashboard={() => setView("dashboard")} />
 
@@ -732,12 +732,12 @@ function TopNav({
 }) {
   return (
     <motion.header
-      className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8"
+      className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8 2xl:max-w-[1680px]"
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
     >
-      <Link href="/" className="flex min-w-0 items-center gap-2 text-blossom-ink">
+      <Link href="/app" className="flex min-w-0 items-center gap-2 text-blossom-ink">
         <motion.span
           className="grid size-10 shrink-0 place-items-center rounded-lg border border-blossom-deep/15 bg-white/80 shadow-sm"
           animate={{ rotate: [0, -4, 3, 0] }}
@@ -1046,7 +1046,7 @@ function PlanEditor({
         </motion.button>
       </motion.div>
 
-      <motion.div className="grid gap-4 md:grid-cols-2" variants={stagger}>
+      <motion.div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3" variants={stagger}>
         {plan.tasks.map((task, index) => (
           <TaskCard
             key={task.id}
