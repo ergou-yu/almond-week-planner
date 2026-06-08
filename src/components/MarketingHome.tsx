@@ -177,12 +177,12 @@ export function MarketingHome() {
             <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.macArm64}>
               <Laptop className="size-5 text-blossom-deep" />
               <h3 className="mt-4 text-sm font-black">macOS Apple Silicon</h3>
-              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">适用于 M 系列芯片 Mac 的 DMG 测试包。</p>
+              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">适用于 M 系列芯片 Mac 的 DMG 测试包。若提示无法验证，请右键打开或在隐私与安全性里允许。</p>
             </a>
             <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.macX64}>
               <Laptop className="size-5 text-blossom-deep" />
               <h3 className="mt-4 text-sm font-black">macOS Intel</h3>
-              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">适用于 Intel 芯片 Mac 的 DMG 测试包。</p>
+              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">适用于 Intel 芯片 Mac 的 DMG 测试包。若提示无法验证，请右键打开或在隐私与安全性里允许。</p>
             </a>
             <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.iosProject}>
               <Smartphone className="size-5 text-blossom-deep" />
@@ -200,7 +200,7 @@ export function MarketingHome() {
             ))}
           </div>
           <p className="mt-5 text-xs leading-6 text-blossom-deep/64">
-            Android、Windows 与 macOS 目前为测试签名包。Windows 便携版未做代码签名，首次打开可能出现 SmartScreen 提示。iOS 安装包和 App Store 上架需要 Apple Developer 证书、Bundle ID、隐私信息、截图与审核；当前先提供可签名的 Xcode 项目包。Linux 与 HarmonyOS 将沿用同账号体系，后续按平台签名和分发要求发布。
+            Android、Windows 与 macOS 目前为测试签名包。macOS 测试包尚未 Apple notarization，首次打开可能需要右键打开或到系统设置的隐私与安全性里点允许。Windows 便携版未做代码签名，首次打开可能出现 SmartScreen 提示。iOS 安装包和 App Store 上架需要 Apple Developer 证书、Bundle ID、隐私信息、截图与审核；当前先提供可签名的 Xcode 项目包。Linux 与 HarmonyOS 将沿用同账号体系，后续按平台签名和分发要求发布。
           </p>
         </div>
       </section>

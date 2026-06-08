@@ -23,6 +23,14 @@ public/downloads/almond-week-planner-macos-x64-v0.1.0.dmg
 
 The DMGs are ad-hoc signed. They are suitable for direct testing, but a public notarized release needs an Apple Developer certificate and notarization.
 
+If macOS blocks a downloaded test build with "Apple could not verify", use one of these test-only options:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/杏花周计划.app
+```
+
+Or right-click the app and choose Open, then confirm in System Settings > Privacy & Security. A public release should be signed with Developer ID and notarized so users do not see this warning.
+
 ## iOS
 
 Package the Xcode project:
