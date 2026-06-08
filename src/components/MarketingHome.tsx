@@ -10,12 +10,18 @@ const spring = {
   damping: 24
 } as const;
 
-const downloadHref = "/downloads/almond-week-planner-android-v0.1.0.apk";
+const downloads = {
+  android: "/downloads/almond-week-planner-android-v0.1.0.apk",
+  macArm64: "/downloads/almond-week-planner-macos-arm64-v0.1.0.dmg",
+  macX64: "/downloads/almond-week-planner-macos-x64-v0.1.0.dmg",
+  iosProject: "/downloads/almond-week-planner-ios-xcode-v0.1.0.zip"
+};
 
 const platformRoadmap = [
   { name: "Android APK", status: "测试包开放下载", icon: Smartphone },
   { name: "网页版", status: "已上线，可直接使用", icon: Globe2 },
-  { name: "macOS Intel / Apple Silicon", status: "即将推出", icon: Laptop },
+  { name: "macOS Intel / Apple Silicon", status: "DMG 测试包开放下载", icon: Laptop },
+  { name: "iOS", status: "Xcode 项目已准备，App Store 待签名审核", icon: Smartphone },
   { name: "Linux", status: "即将推出", icon: MonitorSmartphone },
   { name: "HarmonyOS", status: "工具链与签名确认中", icon: Sparkles }
 ];
@@ -47,7 +53,7 @@ export function MarketingHome() {
           </span>
           <span className="min-w-0">
             <span className="block truncate text-base font-black sm:text-lg">杏花周计划</span>
-            <span className="hidden text-xs text-blossom-deep/70 sm:block">Web + Android 同账号协作</span>
+            <span className="hidden text-xs text-blossom-deep/70 sm:block">Web + Android + macOS 同账号协作</span>
           </span>
         </Link>
         <nav className="flex items-center gap-2">
@@ -55,7 +61,7 @@ export function MarketingHome() {
             打开网页版
             <ExternalLink className="size-4" />
           </Link>
-          <a className="motion-sheen inline-flex min-h-11 items-center gap-2 rounded-lg bg-blossom-ink px-4 text-sm font-black text-white shadow-sm" href={downloadHref}>
+          <a className="motion-sheen inline-flex min-h-11 items-center gap-2 rounded-lg bg-blossom-ink px-4 text-sm font-black text-white shadow-sm" href={downloads.android}>
             下载 APK
             <Download className="size-4" />
           </a>
@@ -71,16 +77,20 @@ export function MarketingHome() {
             <span className="brush-underline">把计划带到手机里</span>
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-blossom-deep/78 sm:text-lg">
-            网页版和 Android APK 使用同一个线上账号，计划、状态、分享评价和导出功能保持互通。学生、家长、老师可以在不同设备上协作监督这一周。
+            网页版、Android APK 和 macOS 应用使用同一个线上账号，计划、状态、分享评价和导出功能保持互通。学生、家长、老师可以在不同设备上协作监督这一周。
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link className="motion-sheen inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blossom-ink px-6 text-sm font-black text-white shadow-brush" href="/app">
               进入网页版
               <ArrowRight className="size-4" />
             </Link>
-            <a className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/86 px-6 text-sm font-black text-blossom-ink shadow-sm" href={downloadHref}>
+            <a className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/86 px-6 text-sm font-black text-blossom-ink shadow-sm" href={downloads.android}>
               下载 Android APK
               <FileDown className="size-4" />
+            </a>
+            <a className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/86 px-6 text-sm font-black text-blossom-ink shadow-sm" href={downloads.macArm64}>
+              下载 macOS
+              <Laptop className="size-4" />
             </a>
           </div>
           <div className="mt-7 grid gap-2 sm:grid-cols-2">
@@ -142,12 +152,34 @@ export function MarketingHome() {
               <p className="text-xs font-black uppercase tracking-[0.18em] text-blossom-deep/58">Downloads</p>
               <h2 className="mt-2 text-3xl font-black">安装包与平台路线</h2>
             </div>
-            <a className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blossom-ink px-5 text-sm font-black text-white" href={downloadHref}>
+            <a className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blossom-ink px-5 text-sm font-black text-white" href={downloads.android}>
               下载 Android 测试包
               <Download className="size-4" />
             </a>
           </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.android}>
+              <Smartphone className="size-5 text-blossom-deep" />
+              <h3 className="mt-4 text-sm font-black">Android APK</h3>
+              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">测试签名包，安装后打开同一个线上应用。</p>
+            </a>
+            <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.macArm64}>
+              <Laptop className="size-5 text-blossom-deep" />
+              <h3 className="mt-4 text-sm font-black">macOS Apple Silicon</h3>
+              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">适用于 M 系列芯片 Mac 的 DMG 测试包。</p>
+            </a>
+            <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.macX64}>
+              <Laptop className="size-5 text-blossom-deep" />
+              <h3 className="mt-4 text-sm font-black">macOS Intel</h3>
+              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">适用于 Intel 芯片 Mac 的 DMG 测试包。</p>
+            </a>
+            <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.iosProject}>
+              <Smartphone className="size-5 text-blossom-deep" />
+              <h3 className="mt-4 text-sm font-black">iOS Xcode 项目</h3>
+              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">可交给 Xcode 配置签名，TestFlight / App Store 需要 Apple Developer。</p>
+            </a>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             {platformRoadmap.map(({ name, status, icon: Icon }) => (
               <div key={name} className="rounded-lg border border-blossom-deep/10 bg-white/78 p-4">
                 <Icon className="size-5 text-blossom-deep" />
@@ -157,7 +189,7 @@ export function MarketingHome() {
             ))}
           </div>
           <p className="mt-5 text-xs leading-6 text-blossom-deep/64">
-            Android APK 为测试签名包。macOS、Linux 与 HarmonyOS 将沿用同账号体系，后续按平台签名和分发要求发布。
+            Android 与 macOS 目前为测试签名包。iOS 安装包和 App Store 上架需要 Apple Developer 证书、Bundle ID、隐私信息、截图与审核；当前先提供可签名的 Xcode 项目包。Linux 与 HarmonyOS 将沿用同账号体系，后续按平台签名和分发要求发布。
           </p>
         </div>
       </section>
