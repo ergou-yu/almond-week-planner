@@ -1,0 +1,9 @@
+{
+  "name": "almond-week-planner-windows",
+  "version": "0.1.0",
+  "description": "Windows desktop shell for 杏花周计划",
+  "main": "main.js",
+  "private": true,
+  "author": "Almond Week Planner",
+  "license": "UNLICENSED"
+}

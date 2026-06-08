@@ -12,6 +12,7 @@ const spring = {
 
 const downloads = {
   android: "/downloads/almond-week-planner-android-v0.1.0.apk",
+  windows: "/downloads/almond-week-planner-windows-x64-v0.1.0.zip",
   macArm64: "/downloads/almond-week-planner-macos-arm64-v0.1.0.dmg",
   macX64: "/downloads/almond-week-planner-macos-x64-v0.1.0.dmg",
   iosProject: "/downloads/almond-week-planner-ios-xcode-v0.1.0.zip"
@@ -20,6 +21,7 @@ const downloads = {
 const platformRoadmap = [
   { name: "Android APK", status: "测试包开放下载", icon: Smartphone },
   { name: "网页版", status: "已上线，可直接使用", icon: Globe2 },
+  { name: "Windows", status: "x64 便携版开放下载", icon: MonitorSmartphone },
   { name: "macOS Intel / Apple Silicon", status: "DMG 测试包开放下载", icon: Laptop },
   { name: "iOS", status: "Xcode 项目已准备，App Store 待签名审核", icon: Smartphone },
   { name: "Linux", status: "即将推出", icon: MonitorSmartphone },
@@ -53,7 +55,7 @@ export function MarketingHome() {
           </span>
           <span className="min-w-0">
             <span className="block truncate text-base font-black sm:text-lg">杏花周计划</span>
-            <span className="hidden text-xs text-blossom-deep/70 sm:block">Web + Android + macOS 同账号协作</span>
+            <span className="hidden text-xs text-blossom-deep/70 sm:block">Web + Android + Windows + macOS 同账号协作</span>
           </span>
         </Link>
         <nav className="flex items-center gap-2">
@@ -77,7 +79,7 @@ export function MarketingHome() {
             <span className="brush-underline">把计划带到手机里</span>
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-blossom-deep/78 sm:text-lg">
-            网页版、Android APK 和 macOS 应用使用同一个线上账号，计划、状态、分享评价和导出功能保持互通。学生、家长、老师可以在不同设备上协作监督这一周。
+            网页版、Android APK、Windows 和 macOS 应用使用同一个线上账号，计划、状态、分享评价和导出功能保持互通。学生、家长、老师可以在不同设备上协作监督这一周。
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link className="motion-sheen inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blossom-ink px-6 text-sm font-black text-white shadow-brush" href="/app">
@@ -91,6 +93,10 @@ export function MarketingHome() {
             <a className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/86 px-6 text-sm font-black text-blossom-ink shadow-sm" href={downloads.macArm64}>
               下载 macOS
               <Laptop className="size-4" />
+            </a>
+            <a className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-blossom-deep/15 bg-white/86 px-6 text-sm font-black text-blossom-ink shadow-sm" href={downloads.windows}>
+              下载 Windows
+              <MonitorSmartphone className="size-4" />
             </a>
           </div>
           <div className="mt-7 grid gap-2 sm:grid-cols-2">
@@ -163,6 +169,11 @@ export function MarketingHome() {
               <h3 className="mt-4 text-sm font-black">Android APK</h3>
               <p className="mt-2 text-xs leading-5 text-blossom-deep/66">测试签名包，安装后打开同一个线上应用。</p>
             </a>
+            <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.windows}>
+              <MonitorSmartphone className="size-5 text-blossom-deep" />
+              <h3 className="mt-4 text-sm font-black">Windows x64</h3>
+              <p className="mt-2 text-xs leading-5 text-blossom-deep/66">便携 ZIP，解压后运行 Almond Week Planner.exe。</p>
+            </a>
             <a className="rounded-lg border border-blossom-deep/10 bg-white/86 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-brush" href={downloads.macArm64}>
               <Laptop className="size-5 text-blossom-deep" />
               <h3 className="mt-4 text-sm font-black">macOS Apple Silicon</h3>
@@ -189,7 +200,7 @@ export function MarketingHome() {
             ))}
           </div>
           <p className="mt-5 text-xs leading-6 text-blossom-deep/64">
-            Android 与 macOS 目前为测试签名包。iOS 安装包和 App Store 上架需要 Apple Developer 证书、Bundle ID、隐私信息、截图与审核；当前先提供可签名的 Xcode 项目包。Linux 与 HarmonyOS 将沿用同账号体系，后续按平台签名和分发要求发布。
+            Android、Windows 与 macOS 目前为测试签名包。Windows 便携版未做代码签名，首次打开可能出现 SmartScreen 提示。iOS 安装包和 App Store 上架需要 Apple Developer 证书、Bundle ID、隐私信息、截图与审核；当前先提供可签名的 Xcode 项目包。Linux 与 HarmonyOS 将沿用同账号体系，后续按平台签名和分发要求发布。
           </p>
         </div>
       </section>
